@@ -15,9 +15,8 @@ def process_img(filename, is_bw=1):
     # Scale and crop image to appropriate proportions and size
     scaled = scale(src)
 
-    blurred = blur(scaled)
-
     # Detect edges
+    blurred = blur(scaled)
     edges = detect_edges(blurred)
 
     # Use edges to detect lines
@@ -31,11 +30,13 @@ def process_img(filename, is_bw=1):
     # ### DEBUG IMAGE for detected lines:
     lines_detected_img = debug_detect_lines(lines, scaled.shape)
 
+    # Fill the image by shading
     shading_lines = []
     if is_bw:
         shading_lines, shaded_img = shade_img_bw(blurred)
     else:
         shading_lines = shade_img_color(blurred)
+
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
     cv2.imshow('Edges', edges)
@@ -284,7 +285,7 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
 
     return canvas
 
-### DEBUG IMAGE for detected lines:
+# DEBUG IMAGE for detected lines:
 def debug_detect_lines(lines, shape):
     # Draw the lines on a blank canvas
     canvas = np.zeros(shape, np.uint8)
