@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import random
 
+TARGET_SCALE_LENGTH = 500.0
+
 # Main image processing function
 # Returns filename of drawing instructions
 def process_img(filename, is_bw=1):
@@ -18,9 +20,10 @@ def process_img(filename, is_bw=1):
     # Detect edges
     blurred = blur(scaled)
     edges = detect_edges(blurred)
+    cv2.imshow('Edges', edges)
 
     # Use edges to detect lines
-    lines = detect_lines(edges, 3)
+    lines = detect_outline(edges, 3)
     print "Number of lines:", len(lines)
     if lines is None:
         print "Error: No lines found"
@@ -28,7 +31,7 @@ def process_img(filename, is_bw=1):
         return
 
     # ### DEBUG IMAGE for detected lines:
-    lines_detected_img = debug_detect_lines(lines, scaled.shape)
+    lines_detected_img = debug_detect_outline(lines, scaled.shape)
 
     # Fill the image by shading
     shading_lines = []
@@ -39,7 +42,6 @@ def process_img(filename, is_bw=1):
 
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
-    cv2.imshow('Edges', edges)
     cv2.imshow('Lines drawn', lines_detected_img)
     cv2.imshow('Lines drawn with shade', final)
     wait()
@@ -48,14 +50,13 @@ def process_img(filename, is_bw=1):
 # Scale image to targeted resolution while maintaining aspect ratio
 def scale(img):
 
-    target_length = 500.0
     img_h = img.shape[0]
     img_w = img.shape[1]
     ratio = 1.0
     if img_h >= img_w:
-        ratio = target_length / img_h
+        ratio = TARGET_SCALE_LENGTH / img_h
     else:
-        ratio = target_length / img_w
+        ratio = TARGET_SCALE_LENGTH / img_w
 
     new_h = int(img_h * ratio)
     new_w = int(img_w * ratio)
@@ -99,12 +100,9 @@ def detect_edges(blurred):
 # ]
 # where each list element is a list of coordinates representing a continuous line that passes those coordinates
 #
-# TODO: implement new algo
-def detect_lines(edges, min_line_length=1):
+def detect_outline(edges, min_line_length=1):
     lines = []
     adjacency = [(i, j) for i in (-1,0,1) for j in (-1,0,1) if not (i == j == 0)]
-
-    print "Edges shape:", edges.shape
 
     max_y = edges.shape[0]
     max_x = edges.shape[1]
@@ -193,42 +191,65 @@ def normalize_brightness(img):
 
 # Return list of lines that shades the image
 # Black and white only
+# Returns lines represented as:
+# [
+#     [[x1, y1], [x2, y2], [x3,y3]],
+#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4]],
+#     [[x1, y1], [x2, y2]],
+#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4], [x5,y5]],
+# ]
 def shade_img_bw(src):
-    gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
-    print gray.shape
+
+    MAX_BRIGHTNESS = 255
+    BRIGHTNESS_LEVELS = 8
 
     # Reduce bit depth
-    max_val = 255
-    brightness_levels = 8
-    diff = 256 / brightness_levels # difference between brightness levels
+    gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
+    diff = 256 / BRIGHTNESS_LEVELS # difference between brightness levels
     gray = (gray / diff) * diff
     cv2.imshow('depth reduced', gray)
 
     all_hatches = np.zeros(gray.shape, np.uint8)
     all_hatches[:] = 0
 
+    canvas = np.zeros(src.shape, np.uint8)
+    canvas[:,:] = (255, 255, 255)
+
+    lines = []
+
     # For each brightness level, replace it with crosshatches
-    for i in range(brightness_levels):
+    for i in range(BRIGHTNESS_LEVELS):
 
         # Isolate the current brightness level using thresholds
         brightness = i * diff
         if brightness != 0:
             # Change colors above the current brightness to 0
-            ret, thresh = cv2.threshold(gray, brightness+1, max_val, cv2.THRESH_TOZERO_INV)
+            ret, thresh = cv2.threshold(gray, brightness+1, MAX_BRIGHTNESS, cv2.THRESH_TOZERO_INV)
             # Reduce the rest brightness colors below
-            ret, thresh2 = cv2.threshold(thresh, brightness-1, max_val, cv2.THRESH_BINARY)
+            ret, thresh2 = cv2.threshold(thresh, brightness-1, MAX_BRIGHTNESS, cv2.THRESH_BINARY)
         else:
-            ret, thresh2 = cv2.threshold(gray, brightness + 1, max_val, cv2.THRESH_BINARY_INV)
+            ret, thresh2 = cv2.threshold(gray, brightness + 1, MAX_BRIGHTNESS, cv2.THRESH_BINARY_INV)
 
         # Only crosshatch if it's not the brightest level
-        if i < (brightness_levels - 1):
+        if i < (BRIGHTNESS_LEVELS - 1):
             # Increase hatch spacing quadratically by squaring
-            hatch_spacing = ((i+1) ** 2) + 2
+            hatch_spacing = ((i+1) ** 2.5) + 3
             crosshatch = gen_crosshatch(thresh2.shape, hatch_spacing, 0)
 
             # Shape the hatching using the shape of the brightness threshold
             # bitwise-AND the cross hatch and threshold brightness
             anded = cv2.bitwise_and(thresh2, crosshatch)
+
+            hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
+            if hough_lines != None:
+                for line in hough_lines:
+                    lines.append(line)
+
+                    # Draw the lines on a blank canvas for debug/testing
+                    x1, y1, x2, y2 = line[0]
+                    cv2.line(canvas, (x1,y1), (x2,y2), (150,150,150), 1)
+
+
             all_hatches = cv2.bitwise_or(anded, all_hatches)
 
             #cv2.imshow("anded_" + str(brightness), anded)
@@ -239,8 +260,11 @@ def shade_img_bw(src):
     all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
     cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
 
-    lines = []
-    return lines, all_hatches_bgr
+    cv2.imshow("anded into hough lines", canvas)
+
+    print 'len(lines)', len(lines)
+
+    return lines, canvas
 
 
 # Return list of lines that shades the image
@@ -286,7 +310,7 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
     return canvas
 
 # DEBUG IMAGE for detected lines:
-def debug_detect_lines(lines, shape):
+def debug_detect_outline(lines, shape):
     # Draw the lines on a blank canvas
     canvas = np.zeros(shape, np.uint8)
     canvas[:,:] = (255, 255, 255)
