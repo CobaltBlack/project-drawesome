@@ -2,7 +2,15 @@ import cv2
 import numpy as np
 import random
 
-TARGET_SCALE_LENGTH = 500.0
+TARGET_SCALE_LENGTH = 1000
+
+
+# One line drawing instruction 
+class Line:
+    def __init__(self, color, points):
+        self.color = color
+        self.points = points
+        
 
 # Main image processing function
 # Returns filename of drawing instructions
@@ -16,6 +24,7 @@ def process_img(filename, is_bw=1):
 
     # Scale and crop image to appropriate proportions and size
     scaled = scale(src)
+    cv2.imshow('Original scaled', scaled)
 
     # Detect edges
     blurred = blur(scaled)
@@ -23,8 +32,7 @@ def process_img(filename, is_bw=1):
     cv2.imshow('Edges', edges)
 
     # Use edges to detect lines
-    lines = detect_outline(edges, 3)
-    print "Number of lines:", len(lines)
+    lines = detect_outline(edges)
     if lines is None:
         print "Error: No lines found"
         wait()
@@ -36,15 +44,17 @@ def process_img(filename, is_bw=1):
     # Fill the image by shading
     shading_lines = []
     if is_bw:
-        shading_lines, shaded_img = shade_img_bw(blurred)
+        shading_lines, shaded_img = shade_img_bw(scaled)
     else:
         shading_lines = shade_img_color(blurred)
 
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
-    cv2.imshow('Lines drawn', lines_detected_img)
-    cv2.imshow('Lines drawn with shade', final)
+    cv2.imshow('Outline detected', lines_detected_img)
+    cv2.imshow('OUtline + shading', final)
     wait()
+    
+    return lines
 
 
 # Scale image to targeted resolution while maintaining aspect ratio
@@ -54,9 +64,9 @@ def scale(img):
     img_w = img.shape[1]
     ratio = 1.0
     if img_h >= img_w:
-        ratio = TARGET_SCALE_LENGTH / img_h
+        ratio = float(TARGET_SCALE_LENGTH) / float(img_h)
     else:
-        ratio = TARGET_SCALE_LENGTH / img_w
+        ratio = float(TARGET_SCALE_LENGTH) / float(img_w)
 
     new_h = int(img_h * ratio)
     new_w = int(img_w * ratio)
@@ -100,7 +110,7 @@ def detect_edges(blurred):
 # ]
 # where each list element is a list of coordinates representing a continuous line that passes those coordinates
 #
-def detect_outline(edges, min_line_length=1):
+def detect_outline(edges, min_line_length=5):
     lines = []
     adjacency = [(i, j) for i in (-1,0,1) for j in (-1,0,1) if not (i == j == 0)]
 
@@ -121,8 +131,8 @@ def detect_outline(edges, min_line_length=1):
             edges[y][x] = 0
 
             # This is the start of a new line
-            new_line = []
-            new_line.append({'x': x, 'y': y})
+            new_line_points = []
+            new_line_points.append([x, y])
 
             # Repeatedly find neighbors that are also edge pixels until no more are found
             cur_x = x
@@ -149,7 +159,7 @@ def detect_outline(edges, min_line_length=1):
                     edges[yp][xp] = 0
 
                     # Add coordinate to the line
-                    new_line.append({'x': xp, 'y': yp})
+                    new_line_points.append([xp, yp])
 
                     # Update starting pixel for next iteration
                     cur_x = xp
@@ -161,7 +171,8 @@ def detect_outline(edges, min_line_length=1):
                 # If no other edge pixel is found after checking neighbors, this is the end of the line
                 if not is_next_pixel_found:
                     # Reject short lines
-                    if len(new_line) > min_line_length:
+                    if len(new_line_points) > min_line_length:
+                        new_line = Line('black', new_line_points)
                         lines.append(new_line)
                     break
 
@@ -193,11 +204,13 @@ def normalize_brightness(img):
 # Black and white only
 # Returns lines represented as:
 # [
-#     [[x1, y1], [x2, y2], [x3,y3]],
-#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4]],
-#     [[x1, y1], [x2, y2]],
-#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4], [x5,y5]],
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3]]},
+#     {color: 'black', points: [[x1, y1], [x2, y2]},
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3], [x4,y4]]},
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3]]},
 # ]
+# Where x1, y1... etc are the coordinates for each point in a line.
+# The line is the points connected together
 def shade_img_bw(src):
 
     MAX_BRIGHTNESS = 255
@@ -233,21 +246,21 @@ def shade_img_bw(src):
         # Only crosshatch if it's not the brightest level
         if i < (BRIGHTNESS_LEVELS - 1):
             # Increase hatch spacing quadratically by squaring
-            hatch_spacing = ((i+1) ** 2.5) + 3
-            crosshatch = gen_crosshatch(thresh2.shape, hatch_spacing, 0)
+            hatch_spacing = ((i+1) ** 2) + 3
+            crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), 0)
 
             # Shape the hatching using the shape of the brightness threshold
             # bitwise-AND the cross hatch and threshold brightness
             anded = cv2.bitwise_and(thresh2, crosshatch)
 
             hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
-            if hough_lines != None:
+            if len(hough_lines) > 0:
                 for line in hough_lines:
                     lines.append(line)
 
                     # Draw the lines on a blank canvas for debug/testing
                     x1, y1, x2, y2 = line[0]
-                    cv2.line(canvas, (x1,y1), (x2,y2), (150,150,150), 1)
+                    cv2.line(canvas, (x1,y1), (x2,y2), (0,0,0), 1)
 
 
             all_hatches = cv2.bitwise_or(anded, all_hatches)
@@ -260,7 +273,7 @@ def shade_img_bw(src):
     all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
     cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
 
-    cv2.imshow("anded into hough lines", canvas)
+    cv2.imshow("all_hatches converted into hough lines", canvas)
 
     print 'len(lines)', len(lines)
 
@@ -282,18 +295,18 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
         print "Crosshatch spacing too small!"
         return
 
-    offset = spacing / 3
+    offset = 0 # spacing / 3
 
     # Make canvas
     canvas = np.zeros(shape, np.uint8)
     canvas[:,:] = 0
 
     # Draw the lines on a blank canvas
-    for i in range(500/spacing):
+    for i in range(TARGET_SCALE_LENGTH/spacing):
         # horizontal lines
         x1 = 0
         y1 = i * spacing + random.randint(-offset, offset)
-        x2 = 500
+        x2 = TARGET_SCALE_LENGTH
         y2 = i * spacing + random.randint(-offset, offset)
         cv2.line(canvas, (x1,y1), (x2,y2), 255, 1)
 
@@ -321,7 +334,7 @@ def debug_detect_outline(lines, shape):
         #hue = random.randint(0, 255)
         val = 0
         sat = 255
-        for j, coord in enumerate(line):
+        for j, coord in enumerate(line.points):
             #x, y = coord.x, coord.y
             #cv2.line(canvas, (x1,y1), (x2,y2), (0,0,0), 2)
             # Make the HSV color and convert to RGB
@@ -329,7 +342,7 @@ def debug_detect_outline(lines, shape):
             col_bgr = cv2.cvtColor(np.array([[col_hsv]], np.uint8), cv2.COLOR_HSV2BGR)[0][0]
 
             # Update the pixel
-            canvas[coord['y']][coord['x']] = col_bgr
+            canvas[coord[1]][coord[0]] = col_bgr
 
     return canvas
 

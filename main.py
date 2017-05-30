@@ -1,5 +1,7 @@
 from image_processing.image_processing import process_img
+from arm_control.arm_control import start_drawing
 import os
+
 
 def main():
 
@@ -16,10 +18,13 @@ def main():
         print 'No pictures found in directory pics/!'
         return
 
-    img_file = test_pics[0]
+    img_file = test_pics[2]
 
     print 'Processing test image', img_file
-    process_img(TEST_PICS_DIRECTORY + img_file)
+    drawing_instructions = process_img(TEST_PICS_DIRECTORY + img_file)
+
+    start_drawing(drawing_instructions)
+
 
 if __name__ == '__main__':
     main()
