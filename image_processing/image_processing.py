@@ -301,21 +301,24 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
     canvas = np.zeros(shape, np.uint8)
     canvas[:,:] = 0
 
+    # Random rotation (CHANGE THIS VALUE BETWEEN 0 - TARGET_SCALE_LENGTH FOR DESIRED ROTATION. TARGET_SCALE_LENGTH = "+", 0 = "x".
+    rnd_rotation = TARGET_SCALE_LENGTH # random.randint(0, TARGET_SCALE_LENGTH*0.9)
+
     # Draw the lines on a blank canvas
-    for i in range(TARGET_SCALE_LENGTH/spacing):
-        # horizontal lines
+    for i in range((TARGET_SCALE_LENGTH/spacing)*2):
+        # parallel lines
         x1 = 0
         y1 = i * spacing + random.randint(-offset, offset)
         x2 = TARGET_SCALE_LENGTH
-        y2 = i * spacing + random.randint(-offset, offset)
+        y2 = i * spacing + random.randint(-offset, offset) + (rnd_rotation - TARGET_SCALE_LENGTH)
         cv2.line(canvas, (x1,y1), (x2,y2), 255, 1)
 
-        # vertical lines
+        # perpendicular lines
+        x1 = 0
         y1 = i * spacing + random.randint(-offset, offset)
-        y2 = i * spacing + random.randint(-offset, offset)
-        cv2.line(canvas, (y1, x1), (y2, x2), 255, 1)
-
-    # TODO: Rotate picture by random amount
+        x2 = TARGET_SCALE_LENGTH
+        y2 = i * spacing + random.randint(-offset, offset) + (TARGET_SCALE_LENGTH - rnd_rotation)
+        cv2.line(canvas, (y2-TARGET_SCALE_LENGTH, x2),(y1-TARGET_SCALE_LENGTH, x1), 255, 1)
 
     # save image as cache, so it doesn't have to be processed again?
     #cv2.imwrite('crosshatch_' + str(spacing) + ".jpg", canvas)
