@@ -28,7 +28,7 @@ class Line:
 
 # Main image processing function
 # Returns filename of drawing instructions
-def process_img(filename, is_bw=1):
+def process_img(filename, is_bw=1, enable_debug=0):
 
     print "Running image_processing module..."
 
@@ -40,12 +40,11 @@ def process_img(filename, is_bw=1):
 
     # Scale and crop image to appropriate proportions and size
     scaled = scale(src)
-    cv2.imshow('Original scaled', scaled)
+    
 
     # Detect edges
     blurred = blur(scaled)
     edges = detect_edges(blurred)
-    #cv2.imshow('Edges', edges)
 
     # Use edges to detect lines
     lines = detect_outline(edges)
@@ -64,14 +63,17 @@ def process_img(filename, is_bw=1):
     else:
         shading_lines = shade_img_color(scaled)
 
-    #final = cv2.bitwise_and(shaded_img, lines_detected_img)
+    final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
-    #cv2.imshow('Outline detected', lines_detected_img)
-    #cv2.imshow('OUtline + shading', final)
-    wait()
-
-    return lines
-
+    if enable_debug:
+        cv2.imshow('Original scaled', scaled)
+        cv2.imshow('Edges', edges)
+        cv2.imshow('Outline detected', lines_detected_img)
+        cv2.imshow('OUtline + shading', final)
+        wait()
+    
+    return lines, final
+    
 
 # Scale image to targeted resolution while maintaining aspect ratio
 def scale(img):
