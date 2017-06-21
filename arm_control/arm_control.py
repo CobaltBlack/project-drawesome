@@ -10,6 +10,7 @@ def start_drawing(instructions):
     curr_y = 0
     
     # Process lines in each instruction
+    print "Running arm_control module..."
     print "Number of instructions received:", len(instructions)
     for line in instructions:
         draw_line(line)

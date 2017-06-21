@@ -3,18 +3,34 @@ import numpy as np
 import random
 
 TARGET_SCALE_LENGTH = 1000
+B_INDEX = 0
+G_INDEX = 1
+R_INDEX = 2
+MAX_BRIGHTNESS = 255
+BRIGHTNESS_LEVELS = 8
 
+COLORS = {
+            'cyan':     (255,   255,    0),
+            'magenta':  (255,   0,      255),
+            'yellow':   (0,     255,    255),
+            'white':    (255,   255,    255),
+            'black':    (0,     0,      0),
+         }
 
-# One line drawing instruction 
+# One line drawing instruction
 class Line:
     def __init__(self, color, points):
         self.color = color
         self.points = points
-        
+
+
+
 
 # Main image processing function
 # Returns filename of drawing instructions
 def process_img(filename, is_bw=1):
+
+    print "Running image_processing module..."
 
     # Load image
     src = cv2.imread(filename)
@@ -29,7 +45,7 @@ def process_img(filename, is_bw=1):
     # Detect edges
     blurred = blur(scaled)
     edges = detect_edges(blurred)
-    cv2.imshow('Edges', edges)
+    #cv2.imshow('Edges', edges)
 
     # Use edges to detect lines
     lines = detect_outline(edges)
@@ -46,14 +62,14 @@ def process_img(filename, is_bw=1):
     if is_bw:
         shading_lines, shaded_img = shade_img_bw(scaled)
     else:
-        shading_lines = shade_img_color(blurred)
+        shading_lines = shade_img_color(scaled)
 
-    final = cv2.bitwise_and(shaded_img, lines_detected_img)
+    #final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
-    cv2.imshow('Outline detected', lines_detected_img)
-    cv2.imshow('OUtline + shading', final)
+    #cv2.imshow('Outline detected', lines_detected_img)
+    #cv2.imshow('OUtline + shading', final)
     wait()
-    
+
     return lines
 
 
@@ -213,14 +229,12 @@ def normalize_brightness(img):
 # The line is the points connected together
 def shade_img_bw(src):
 
-    MAX_BRIGHTNESS = 255
-    BRIGHTNESS_LEVELS = 8
 
     # Reduce bit depth
     gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
     diff = 256 / BRIGHTNESS_LEVELS # difference between brightness levels
     gray = (gray / diff) * diff
-    cv2.imshow('depth reduced', gray)
+    #cv2.imshow('depth reduced', gray)
 
     all_hatches = np.zeros(gray.shape, np.uint8)
     all_hatches[:] = 0
@@ -246,13 +260,14 @@ def shade_img_bw(src):
         # Only crosshatch if it's not the brightest level
         if i < (BRIGHTNESS_LEVELS - 1):
             # Increase hatch spacing quadratically by squaring
-            hatch_spacing = ((i+1) ** 2) + 3
-            crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), 0)
+            hatch_spacing = ((i+2) ** 2) + 3
+            crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), TARGET_SCALE_LENGTH)
 
             # Shape the hatching using the shape of the brightness threshold
             # bitwise-AND the cross hatch and threshold brightness
             anded = cv2.bitwise_and(thresh2, crosshatch)
 
+            # Conversion to Line instructions using houghlines
             hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
             if len(hough_lines) > 0:
                 for line in hough_lines:
@@ -271,9 +286,8 @@ def shade_img_bw(src):
 
     all_hatches = 255 - all_hatches
     all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
-    cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
-
-    cv2.imshow("all_hatches converted into hough lines", canvas)
+    #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
+    #cv2.imshow("all_hatches converted into hough lines", canvas)
 
     print 'len(lines)', len(lines)
 
@@ -281,9 +295,133 @@ def shade_img_bw(src):
 
 
 # Return list of lines that shades the image
-# BACKLOG: colored version
+# Returned lines use CMYK colors
 def shade_img_color(src):
+    # Shade using alternating color/black
+    # Color hue is whichever of the base colors it is the closest to
+    # Higher saturation: More color lines, low sat: less color
+    # Higher value: more "blanks" (less lines), Low value: more black lines
+
+    print "shade_img_color start"
+
+    canvas = np.zeros(src.shape, np.uint8)
+    canvas[:,:] = (255, 255, 255)
+
+    lines = []
+
+    # Convert image into 1-channel CMYK images (Cyan, Magenta, Yellow, Black)
+    c_img, m_img, y_img, k_img = rgb_to_cmyk_imgs(src)
+    for img, color in [[c_img, 'cyan'], [m_img, 'magenta'], [y_img, 'yellow'], [k_img, 'black']]:
+
+        # Reduce bit depth per channel
+        diff = 256 / BRIGHTNESS_LEVELS # diff is difference between brightness levels
+        reduced = (img / diff) * diff
+        cv2.imshow("Reduced " + color, reduced)
+
+         # For each brightness level, replace it with crosshatches
+        for i in range(BRIGHTNESS_LEVELS):
+
+            # Isolate the current brightness level using thresholds
+            brightness = i * diff
+            if brightness != 0:
+                # Change colors above the current brightness to 0
+                ret, thresh = cv2.threshold(reduced, brightness+1, MAX_BRIGHTNESS, cv2.THRESH_TOZERO_INV)
+                # Reduce the rest brightness colors below
+                ret, thresh2 = cv2.threshold(thresh, brightness-1, MAX_BRIGHTNESS, cv2.THRESH_BINARY)
+            else:
+                ret, thresh2 = cv2.threshold(reduced, brightness + 1, MAX_BRIGHTNESS, cv2.THRESH_BINARY_INV)
+
+            # Only crosshatch if it's not the brightest level
+            if i < (BRIGHTNESS_LEVELS - 1):
+                # Increase hatch spacing quadratically by squaring
+                hatch_spacing = ((i+2) ** 2) + 5
+                rotation = i * (TARGET_SCALE_LENGTH / BRIGHTNESS_LEVELS)
+                crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), rotation)
+#random.randint(0, TARGET_SCALE_LENGTH*0.9)
+                # Shape the hatching using the shape of the brightness threshold
+                # bitwise-AND the cross hatch and threshold brightness
+                anded = cv2.bitwise_and(thresh2, crosshatch)
+
+                # Conversion to Line instructions using houghlines
+                hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
+                if hough_lines is None:
+                    print "No lines found", color, "brightness:", i
+                elif len(hough_lines) > 0:
+                    for line in hough_lines:
+                        lines.append(line)
+
+                        # Draw the lines on a blank canvas for debug/testing
+                        x1, y1, x2, y2 = line[0]
+                        cv2.line(canvas, (x1,y1), (x2,y2), COLORS[color], 1)
+
+
+        # Create crosshatching lines similar to black/white shading
+
+        # Use varying angles of cross hatches for each color
+
+        # Get black/white shading for darkness/brightness
+
+    # Combine all crosshatching lines together
+
+    cv2.imshow("CMYK into hough lines", canvas)
+
     return []
+
+
+
+    # Converts RGB src image into 4 one-channel images, for each of C, Y, M, K
+def rgb_to_cmyk_imgs(src):
+
+    print "Converting image to CMYK..."
+
+    img_shape = (src.shape[0], src.shape[1])
+
+    # Initialize 4 one-channel images for C, M, Y, K
+    c_img = np.zeros(img_shape, np.uint8)
+    m_img = np.zeros(img_shape, np.uint8)
+    y_img = np.zeros(img_shape, np.uint8)
+    k_img = np.zeros(img_shape, np.uint8)
+
+    for y in range(len(src)):
+        row = src[y]
+        for x in range(len(row)):
+            pixel_b = src.item(y,x,B_INDEX)
+            pixel_g = src.item(y,x,G_INDEX)
+            pixel_r = src.item(y,x,R_INDEX)
+
+            c_val, m_val, y_val, k_val = rgb_to_cmyk(pixel_r, pixel_g, pixel_b)
+
+            for img in [c_img, m_img, y_img, k_img]:
+                c_img.itemset((y,x), 255-c_val)
+                m_img.itemset((y,x), 255-m_val)
+                y_img.itemset((y,x), 255-y_val)
+                k_img.itemset((y,x), 255-k_val)
+
+    print "Done."
+    return c_img, m_img, y_img, k_img
+
+
+cmyk_scale = 255
+
+def rgb_to_cmyk(r,g,b):
+    if (r == 0) and (g == 0) and (b == 0):
+        # black
+        return 0, 0, 0, cmyk_scale
+
+    # rgb [0,255] -> cmy [0,1]
+    c = 1 - r / 255.
+    m = 1 - g / 255.
+    y = 1 - b / 255.
+
+    # extract out k [0,1]
+    min_cmy = min(c, m, y)
+    c = (c - min_cmy) / (1 - min_cmy)
+    m = (m - min_cmy) / (1 - min_cmy)
+    y = (y - min_cmy) / (1 - min_cmy)
+    k = min_cmy
+
+    # rescale to the range [0,cmyk_scale]
+    return c*cmyk_scale, m*cmyk_scale, y*cmyk_scale, k*cmyk_scale
 
 
 # shape: shape of output
@@ -302,7 +440,7 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
     canvas[:,:] = 0
 
     # Random rotation (CHANGE THIS VALUE BETWEEN 0 - TARGET_SCALE_LENGTH FOR DESIRED ROTATION. TARGET_SCALE_LENGTH = "+", 0 = "x".
-    rnd_rotation = TARGET_SCALE_LENGTH # random.randint(0, TARGET_SCALE_LENGTH*0.9)
+    rnd_rotation = rotation #TARGET_SCALE_LENGTH # random.randint(0, TARGET_SCALE_LENGTH*0.9)
 
     # Draw the lines on a blank canvas
     for i in range((TARGET_SCALE_LENGTH/spacing)*2):
@@ -318,10 +456,11 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
         y1 = i * spacing + random.randint(-offset, offset)
         x2 = TARGET_SCALE_LENGTH
         y2 = i * spacing + random.randint(-offset, offset) + (TARGET_SCALE_LENGTH - rnd_rotation)
+
         cv2.line(canvas, (y2-TARGET_SCALE_LENGTH, x2),(y1-TARGET_SCALE_LENGTH, x1), 255, 1)
 
     # save image as cache, so it doesn't have to be processed again?
-    #cv2.imwrite('crosshatch_' + str(spacing) + ".jpg", canvas)
+    cv2.imwrite('crosshatch_' + str(spacing) + "_" + str(rotation) + ".jpg", canvas)
 
     return canvas
 

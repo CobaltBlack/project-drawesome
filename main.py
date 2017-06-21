@@ -18,10 +18,10 @@ def main():
         print 'No pictures found in directory pics/!'
         return
 
-    img_file = test_pics[0]
+    img_file = 'gradient.png' #test_pics[0]
 
     print 'Processing test image', img_file
-    drawing_instructions = process_img(TEST_PICS_DIRECTORY + img_file)
+    drawing_instructions = process_img(TEST_PICS_DIRECTORY + img_file, is_bw=0)
 
     start_drawing(drawing_instructions)
 
