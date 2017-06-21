@@ -21,7 +21,7 @@ def main():
     img_file = test_pics[0]
 
     print 'Processing test image', img_file
-    drawing_instructions = process_img(TEST_PICS_DIRECTORY + img_file)
+    drawing_instructions, processed_image = process_img(TEST_PICS_DIRECTORY + img_file, 1, 1)
 
     start_drawing(drawing_instructions)
 

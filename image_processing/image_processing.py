@@ -14,7 +14,7 @@ class Line:
 
 # Main image processing function
 # Returns filename of drawing instructions
-def process_img(filename, is_bw=1):
+def process_img(filename, is_bw=1, enable_debug=0):
 
     # Load image
     src = cv2.imread(filename)
@@ -24,12 +24,12 @@ def process_img(filename, is_bw=1):
 
     # Scale and crop image to appropriate proportions and size
     scaled = scale(src)
-    cv2.imshow('Original scaled', scaled)
+    
 
     # Detect edges
     blurred = blur(scaled)
     edges = detect_edges(blurred)
-    cv2.imshow('Edges', edges)
+    
 
     # Use edges to detect lines
     lines = detect_outline(edges)
@@ -50,11 +50,14 @@ def process_img(filename, is_bw=1):
 
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
-    cv2.imshow('Outline detected', lines_detected_img)
-    cv2.imshow('OUtline + shading', final)
-    wait()
+    if enable_debug:
+        cv2.imshow('Original scaled', scaled)
+        cv2.imshow('Edges', edges)
+        cv2.imshow('Outline detected', lines_detected_img)
+        cv2.imshow('OUtline + shading', final)
+        wait()
     
-    return lines
+    return lines, final
 
 
 # Scale image to targeted resolution while maintaining aspect ratio
@@ -220,7 +223,7 @@ def shade_img_bw(src):
     gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
     diff = 256 / BRIGHTNESS_LEVELS # difference between brightness levels
     gray = (gray / diff) * diff
-    cv2.imshow('depth reduced', gray)
+    #cv2.imshow('depth reduced', gray)
 
     all_hatches = np.zeros(gray.shape, np.uint8)
     all_hatches[:] = 0
@@ -271,9 +274,9 @@ def shade_img_bw(src):
 
     all_hatches = 255 - all_hatches
     all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
-    cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
+    #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
 
-    cv2.imshow("all_hatches converted into hough lines", canvas)
+    #cv2.imshow("all_hatches converted into hough lines", canvas)
 
     print 'len(lines)', len(lines)
 
