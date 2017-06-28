@@ -4,38 +4,45 @@ from Tkinter import *
 from tkFileDialog import askopenfilename
 from PIL import ImageTk, Image
 
-def openImage():
-    global fileName
-    fileName = askopenfilename()
-
-    # load image
-    loaded_image = ImageTk.PhotoImage(Image.open(fileName))
+def open_image():
+    global file_name
     
-    # display image
-    displayImage(loaded_image)
+    file_name = askopenfilename()
+    
+    if not file_name:
+        print "Open image canceled!"
+        return
+    
+    loaded_image = ImageTk.PhotoImage(Image.open(file_name))
+    display_image(loaded_image)
 
 # CALEB ADD YOUR THINGS HERE!!!!! - JOSH
-def takePicture():
-    global fileName
-    # TO DO: take a picture
-    # i assume it would go someting like... take a picture using cam, save it in harddrive, and save the address onto 'fileName', and display it using displayImage function
+def take_picture():
+    global file_name
     
-def processImage():
-    global fileName
-    processed_lines, processed_image = process_img(fileName, 1, 0)
+    # TO DO: take a picture
+    # i assume it would go someting like... take a picture using cam, save it in harddrive, and save the address onto 'file_name', and display it using 'display_image' function
+    
+def process_image():
+    global file_name
+    
+    if not file_name:
+        print "No loaded image!"
+        return
+    
+    processed_lines, processed_image = process_img(file_name, 1, 0)
 
     # convert the Image object into a TkPhoto object
     im = Image.fromarray(processed_image)
     processed_image_tk = ImageTk.PhotoImage(image=im) 
 
-    # display image
-    displayImage(processed_image_tk)
+    display_image(processed_image_tk)
     
-def drawImage():
+def draw_image():
     # TO DO: start drawing with robot arm
     return
     
-def displayImage(image):
+def display_image(image):
     # TO DO: scale image size to fit the canvas size properly
     
     canvas.delete("all")
@@ -52,10 +59,10 @@ root.geometry("300x300");
 # Menu bar set up
 menubar = Menu(root)
 filemenu = Menu(menubar, tearoff=0)
-filemenu.add_command(label="Open Image", command=openImage)
-filemenu.add_command(label="Take Picture", command=takePicture)
-filemenu.add_command(label="Process", command=processImage)
-filemenu.add_command(label="Draw", command=drawImage)
+filemenu.add_command(label="Open Image", command=open_image)
+filemenu.add_command(label="Take Picture", command=take_picture)
+filemenu.add_command(label="Process", command=process_image)
+filemenu.add_command(label="Draw", command=draw_image)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Functions", menu=filemenu)
