@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 import random
 
-TARGET_SCALE_LENGTH = 1000
+TARGET_SCALE_LENGTH = 1000 # Length of the longer side
+TARGET_ASPECT_RATIO = 16.0 / 9.0
 B_INDEX = 0
 G_INDEX = 1
 R_INDEX = 2
@@ -28,7 +29,7 @@ class Line:
 
 # Main image processing function
 # Returns filename of drawing instructions
-def process_img(filename, is_bw=1, enable_debug=0):
+def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit"):
 
     print "Running image_processing module..."
 
@@ -40,10 +41,16 @@ def process_img(filename, is_bw=1, enable_debug=0):
 
     # Scale and crop image to appropriate proportions and size
     scaled = scale(src)
-    
+
+    # Crop or fit image into aspect ratio
+    # Note to Josh: may have to move scale() code into these functions instead
+    if (crop_mode == "fit"):
+        cropped = fit_to_target(scaled, TARGET_SCALE_LENGTH, TARGET_ASPECT_RATIO)
+    elif (crop_mode == "crop"):
+        cropped = crop_to_target(scaled, TARGET_SCALE_LENGTH, TARGET_ASPECT_RATIO)
 
     # Detect edges
-    blurred = blur(scaled)
+    blurred = blur(cropped)
     edges = detect_edges(blurred)
 
     # Use edges to detect lines
@@ -61,19 +68,18 @@ def process_img(filename, is_bw=1, enable_debug=0):
     if is_bw:
         shading_lines, shaded_img = shade_img_bw(scaled)
     else:
-        shading_lines = shade_img_color(scaled)
+        shading_lines, shaded_img = shade_img_color(scaled)
 
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
     if enable_debug:
         cv2.imshow('Original scaled', scaled)
-        cv2.imshow('Edges', edges)
         cv2.imshow('Outline detected', lines_detected_img)
         cv2.imshow('OUtline + shading', final)
         wait()
-    
+
     return lines, final
-    
+
 
 # Scale image to targeted resolution while maintaining aspect ratio
 def scale(img):
@@ -218,6 +224,17 @@ def normalize_brightness(img):
     return bgr
 
 
+
+def fit_to_target(img, target_length, target_ratio):
+    # TODO Josh: implement
+    return img
+
+
+def crop_to_target(img, target_length, target_ratio):
+    # TODO Josh: implement
+    return img
+
+
 # Return list of lines that shades the image
 # Black and white only
 # Returns lines represented as:
@@ -287,12 +304,12 @@ def shade_img_bw(src):
     # end for-loop
 
     all_hatches = 255 - all_hatches
-    all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
-    #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
-    #cv2.imshow("all_hatches converted into hough lines", canvas)
 
     print 'len(lines)', len(lines)
 
+    all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
+    #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
+    #cv2.imshow("all_hatches converted into hough lines", canvas)
     return lines, canvas
 
 
@@ -337,7 +354,11 @@ def shade_img_color(src):
             if i < (BRIGHTNESS_LEVELS - 1):
                 # Increase hatch spacing quadratically by squaring
                 hatch_spacing = ((i+2) ** 2) + 5
+
+                # Use varying angles of cross hatches for each color
                 rotation = i * (TARGET_SCALE_LENGTH / BRIGHTNESS_LEVELS)
+
+
                 crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), rotation)
 #random.randint(0, TARGET_SCALE_LENGTH*0.9)
                 # Shape the hatching using the shape of the brightness threshold
@@ -355,19 +376,13 @@ def shade_img_color(src):
                         # Draw the lines on a blank canvas for debug/testing
                         x1, y1, x2, y2 = line[0]
                         cv2.line(canvas, (x1,y1), (x2,y2), COLORS[color], 1)
+        # end for-loop
 
-
-        # Create crosshatching lines similar to black/white shading
-
-        # Use varying angles of cross hatches for each color
-
-        # Get black/white shading for darkness/brightness
-
-    # Combine all crosshatching lines together
+    # end for-loop
 
     cv2.imshow("CMYK into hough lines", canvas)
 
-    return []
+    return [], canvas
 
 
 
