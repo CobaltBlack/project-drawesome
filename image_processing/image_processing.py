@@ -226,13 +226,48 @@ def normalize_brightness(img):
 
 
 def fit_to_target(img, target_length, target_ratio):
-    # TODO Josh: implement
-    return img
+    LETTER_RATIO = 8.5 / 11.0
+
+    img_h, img_w = img.shape[:2]
+    IMG_RATIO = img_w / img_h
+
+    color = [255, 255, 255] # rgb white
+
+    if LETTER_RATIO >= IMG_RATIO:
+        target_h = img_w / LETTER_RATIO
+        bordersize = int(round((img_h - target_h)/2))
+        border_img = cv2.copyMakeBorder(img, top=0, bottom=0, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT, value=color)
+        #cv2.imshow('border_img',border_img)
+        return img#border_img
+        
+    else:
+        target_w = img_h * LETTER_RATIO
+        bordersize = int(round((img_w - target_w)/2))
+        border_img = cv2.copyMakeBorder(img, top=bordersize, bottom=bordersize, left=0, right=0, borderType= cv2.BORDER_CONSTANT, value=color)
+        #cv2.imshow('border_img',border_img)
+        return img#border_img
 
 
 def crop_to_target(img, target_length, target_ratio):
-    # TODO Josh: implement
-    return img
+    LETTER_RATIO = 8.5 / 11.0
+
+    img_h, img_w = img.shape[:2]
+    IMG_RATIO = img_w / img_h
+
+    if LETTER_RATIO >= IMG_RATIO:
+        target_h = img_w / LETTER_RATIO
+        cropped_h = (img_h - target_h)/2
+        crop_img = img[int(round(cropped_h)):int(round(target_h + cropped_h)), 0:img_w]
+        #cv2.imshow("cropped", crop_img)
+        return img#crop_img
+        
+    else:
+        target_w = img_h * LETTER_RATIO
+        cropped_w = (img_w - target_w)/2
+        crop_img = img[0:img_h, int(round(cropped_w)):int(round(target_w + cropped_w))]
+        #cv2.imshow("cropped", crop_img)
+        return img#crop_img
+
 
 
 # Return list of lines that shades the image
