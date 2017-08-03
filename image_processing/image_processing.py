@@ -1,9 +1,12 @@
 import cv2
+import math
 import numpy as np
 import random
 
 TARGET_SCALE_LENGTH = 1000 # Length of the longer side
 TARGET_ASPECT_RATIO = 16.0 / 9.0
+LETTER_RATIO = 8.5 / 11.0
+
 B_INDEX = 0
 G_INDEX = 1
 R_INDEX = 2
@@ -18,13 +21,19 @@ COLORS = {
             'black':    (0,     0,      0),
          }
 
+COLOR_TO_ANGLE = {
+            'cyan':     15,
+            'magenta':  75,
+            'yellow':   0,
+            'black':    45,
+}
+
+
 # One line drawing instruction
 class Line:
     def __init__(self, color, points):
         self.color = color
         self.points = points
-
-
 
 
 # Main image processing function
@@ -43,11 +52,10 @@ def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit"):
     scaled = scale(src)
 
     # Crop or fit image into aspect ratio
-    # Note to Josh: may have to move scale() code into these functions instead
     if (crop_mode == "fit"):
-        cropped = fit_to_target(scaled, TARGET_SCALE_LENGTH, TARGET_ASPECT_RATIO)
+        cropped = fit_to_target(scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
     elif (crop_mode == "crop"):
-        cropped = crop_to_target(scaled, TARGET_SCALE_LENGTH, TARGET_ASPECT_RATIO)
+        cropped = crop_to_target(scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
 
     # Detect edges
     blurred = blur(cropped)
@@ -61,19 +69,21 @@ def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit"):
         return
 
     # ### DEBUG IMAGE for detected lines:
-    lines_detected_img = debug_detect_outline(lines, scaled.shape)
+    lines_detected_img = debug_detect_outline(lines, cropped.shape)
 
     # Fill the image by shading
     shading_lines = []
     if is_bw:
-        shading_lines, shaded_img = shade_img_bw(scaled)
+        shading_lines, shaded_img = shade_img_bw(cropped)
     else:
-        shading_lines, shaded_img = shade_img_color(scaled)
+        shading_lines, shaded_img = shade_img_color(cropped)
+
+    lines.extend(shading_lines)
 
     final = cv2.bitwise_and(shaded_img, lines_detected_img)
 
     if enable_debug:
-        cv2.imshow('Original scaled', scaled)
+        cv2.imshow('Original scaled', cropped)
         cv2.imshow('Outline detected', lines_detected_img)
         cv2.imshow('OUtline + shading', final)
         wait()
@@ -117,24 +127,22 @@ def blur(img):
 # Runs Canny edge detection
 def detect_edges(blurred):
 
-    # norm = normalize_brightness(blurred)
-    # cv2.imshow('Normalized 2', norm)
-
     edges = cv2.Canny(blurred, 50, 150)
-    #edges = cv2.Canny(gray,50,150,apertureSize = 3)
     return edges
 
 
-# Given Canny output, returns lines represented as:
+# Given Canny output,
+# Returns lines represented as:
 # [
-#     [[x1, y1], [x2, y2], [x3,y3]],
-#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4]],
-#     [[x1, y1], [x2, y2]],
-#     [[x1, y1], [x2, y2], [x3,y3], [x4,y4], [x5,y5]],
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3]]},
+#     {color: 'black', points: [[x1, y1], [x2, y2]},
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3], [x4,y4]]},
+#     {color: 'black', points: [[x1, y1], [x2, y2], [x3,y3]]},
 # ]
 # where each list element is a list of coordinates representing a continuous line that passes those coordinates
 #
-def detect_outline(edges, min_line_length=5):
+def detect_outline(edges, min_line_length=5, return_only_endpoints=0, color='black'):
+
     lines = []
     adjacency = [(i, j) for i in (-1,0,1) for j in (-1,0,1) if not (i == j == 0)]
 
@@ -172,8 +180,7 @@ def detect_outline(edges, min_line_length=5):
                         continue
 
                     # Skip black pixel (not an edge)
-                    adjacent_pixel = edges[yp][xp]
-                    if adjacent_pixel == 0:
+                    if edges[yp][xp] == 0:
                         continue
 
                     # This is an edge pixel
@@ -196,7 +203,13 @@ def detect_outline(edges, min_line_length=5):
                 if not is_next_pixel_found:
                     # Reject short lines
                     if len(new_line_points) > min_line_length:
-                        new_line = Line('black', new_line_points)
+                        if (return_only_endpoints):
+                            endpoints = (new_line_points[0], new_line_points[-1])
+                            new_line = Line(color, endpoints)
+
+                        else:
+                            new_line = Line(color, new_line_points)
+
                         lines.append(new_line)
                     break
 
@@ -226,48 +239,39 @@ def normalize_brightness(img):
 
 
 def fit_to_target(img, target_length, target_ratio):
-    LETTER_RATIO = 8.5 / 11.0
-
     img_h, img_w = img.shape[:2]
     IMG_RATIO = img_w / img_h
 
     color = [255, 255, 255] # rgb white
 
-    if LETTER_RATIO >= IMG_RATIO:
-        target_h = img_w / LETTER_RATIO
+    if target_ratio >= IMG_RATIO:
+        target_h = img_w / target_ratio
         bordersize = int(round((img_h - target_h)/2))
         border_img = cv2.copyMakeBorder(img, top=0, bottom=0, left=bordersize, right=bordersize, borderType= cv2.BORDER_CONSTANT, value=color)
-        #cv2.imshow('border_img',border_img)
-        return img#border_img
-        
+        return border_img
+
     else:
-        target_w = img_h * LETTER_RATIO
+        target_w = img_h * target_ratio
         bordersize = int(round((img_w - target_w)/2))
         border_img = cv2.copyMakeBorder(img, top=bordersize, bottom=bordersize, left=0, right=0, borderType= cv2.BORDER_CONSTANT, value=color)
-        #cv2.imshow('border_img',border_img)
-        return img#border_img
+        return border_img
 
 
 def crop_to_target(img, target_length, target_ratio):
-    LETTER_RATIO = 8.5 / 11.0
-
     img_h, img_w = img.shape[:2]
     IMG_RATIO = img_w / img_h
 
-    if LETTER_RATIO >= IMG_RATIO:
-        target_h = img_w / LETTER_RATIO
+    if target_ratio >= IMG_RATIO:
+        target_h = img_w / target_ratio
         cropped_h = (img_h - target_h)/2
         crop_img = img[int(round(cropped_h)):int(round(target_h + cropped_h)), 0:img_w]
-        #cv2.imshow("cropped", crop_img)
-        return img#crop_img
-        
+        return crop_img
+
     else:
-        target_w = img_h * LETTER_RATIO
+        target_w = img_h * target_ratio
         cropped_w = (img_w - target_w)/2
         crop_img = img[0:img_h, int(round(cropped_w)):int(round(target_w + cropped_w))]
-        #cv2.imshow("cropped", crop_img)
-        return img#crop_img
-
+        return crop_img
 
 
 # Return list of lines that shades the image
@@ -283,12 +287,10 @@ def crop_to_target(img, target_length, target_ratio):
 # The line is the points connected together
 def shade_img_bw(src):
 
-
     # Reduce bit depth
     gray = cv2.cvtColor(src, cv2.COLOR_BGR2GRAY)
     diff = 256 / BRIGHTNESS_LEVELS # difference between brightness levels
     gray = (gray / diff) * diff
-    #cv2.imshow('depth reduced', gray)
 
     all_hatches = np.zeros(gray.shape, np.uint8)
     all_hatches[:] = 0
@@ -315,48 +317,43 @@ def shade_img_bw(src):
         if i < (BRIGHTNESS_LEVELS - 1):
             # Increase hatch spacing quadratically by squaring
             hatch_spacing = ((i+2) ** 2) + 3
-            crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), TARGET_SCALE_LENGTH)
+            crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), 45)
 
             # Shape the hatching using the shape of the brightness threshold
             # bitwise-AND the cross hatch and threshold brightness
-            anded = cv2.bitwise_and(thresh2, crosshatch)
+            cropped_hatch = cv2.bitwise_and(thresh2, crosshatch)
 
-            # Conversion to Line instructions using houghlines
-            hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
-            if len(hough_lines) > 0:
-                for line in hough_lines:
-                    lines.append(line)
+            # Detect lines from both sets of cropped hatches
+            detected_lines = detect_outline(cropped_hatch, return_only_endpoints=1)
 
-                    # Draw the lines on a blank canvas for debug/testing
-                    x1, y1, x2, y2 = line[0]
-                    cv2.line(canvas, (x1,y1), (x2,y2), (0,0,0), 1)
+            # Add lines to main list
+            lines.extend(detected_lines)
 
-
-            all_hatches = cv2.bitwise_or(anded, all_hatches)
-
-            #cv2.imshow("anded_" + str(brightness), anded)
+            # Repeat for hatches in perpendicular direction
+            #crosshatch_perp = gen_crosshatch(thresh2.shape, int(hatch_spacing), get_perpendicular_angle(45))
+            #cropped_hatch_perp = cv2.bitwise_and(thresh2, crosshatch_perp)
+            #detected_lines_perp = detect_outline(cropped_hatch_perp, return_only_endpoints=1)
+            #lines.extend(detected_lines_perp)
 
     # end for-loop
 
-    all_hatches = 255 - all_hatches
-
     print 'len(lines)', len(lines)
 
-    all_hatches_bgr = cv2.cvtColor(all_hatches, cv2.COLOR_GRAY2BGR)
+    debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
+
     #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
     #cv2.imshow("all_hatches converted into hough lines", canvas)
-    return lines, canvas
+    return lines, debug_img
 
 
 # Return list of lines that shades the image
 # Returned lines use CMYK colors
 def shade_img_color(src):
+    # IDEAS:
     # Shade using alternating color/black
     # Color hue is whichever of the base colors it is the closest to
     # Higher saturation: More color lines, low sat: less color
     # Higher value: more "blanks" (less lines), Low value: more black lines
-
-    print "shade_img_color start"
 
     canvas = np.zeros(src.shape, np.uint8)
     canvas[:,:] = (255, 255, 255)
@@ -371,6 +368,10 @@ def shade_img_color(src):
         diff = 256 / BRIGHTNESS_LEVELS # diff is difference between brightness levels
         reduced = (img / diff) * diff
         cv2.imshow("Reduced " + color, reduced)
+
+        # Use varying angles of cross hatches for each color
+        rotation = COLOR_TO_ANGLE[color]
+        rotation_perp = get_perpendicular_angle(rotation)
 
          # For each brightness level, replace it with crosshatches
         for i in range(BRIGHTNESS_LEVELS):
@@ -389,39 +390,38 @@ def shade_img_color(src):
             if i < (BRIGHTNESS_LEVELS - 1):
                 # Increase hatch spacing quadratically by squaring
                 hatch_spacing = ((i+2) ** 2) + 5
-
-                # Use varying angles of cross hatches for each color
-                rotation = i * (TARGET_SCALE_LENGTH / BRIGHTNESS_LEVELS)
-
-
                 crosshatch = gen_crosshatch(thresh2.shape, int(hatch_spacing), rotation)
-#random.randint(0, TARGET_SCALE_LENGTH*0.9)
+
                 # Shape the hatching using the shape of the brightness threshold
                 # bitwise-AND the cross hatch and threshold brightness
-                anded = cv2.bitwise_and(thresh2, crosshatch)
+                cropped_hatch = cv2.bitwise_and(thresh2, crosshatch)
 
-                # Conversion to Line instructions using houghlines
-                hough_lines = cv2.HoughLinesP(anded, 1, np.pi/180, 10, minLineLength=4, maxLineGap=0)
-                if hough_lines is None:
-                    print "No lines found", color, "brightness:", i
-                elif len(hough_lines) > 0:
-                    for line in hough_lines:
-                        lines.append(line)
+                # Detect lines from both sets of cropped hatches
+                detected_lines = detect_outline(cropped_hatch, return_only_endpoints=1, color=color)
 
-                        # Draw the lines on a blank canvas for debug/testing
-                        x1, y1, x2, y2 = line[0]
-                        cv2.line(canvas, (x1,y1), (x2,y2), COLORS[color], 1)
+                # Add to main list of lines
+                lines.extend(detected_lines)
+
+                # Repeat for hatches in perpendicular direction
+                # Don't do this for black lines because it looks shitty
+                if color != 'black':
+                    crosshatch_perp = gen_crosshatch(thresh2.shape, int(hatch_spacing), rotation_perp)
+                    cropped_hatch_perp = cv2.bitwise_and(thresh2, crosshatch_perp)
+                    detected_lines_perp = detect_outline(cropped_hatch_perp, return_only_endpoints=1, color=color)
+                    lines.extend(detected_lines_perp)
+
         # end for-loop
 
     # end for-loop
 
-    cv2.imshow("CMYK into hough lines", canvas)
+    print 'len(lines) from shade_img_color', len(lines)
 
-    return [], canvas
+    debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
+
+    return lines, debug_img
 
 
-
-    # Converts RGB src image into 4 one-channel images, for each of C, Y, M, K
+# Converts RGB src image into 4 one-channel images, for each of C, Y, M, K
 def rgb_to_cmyk_imgs(src):
 
     print "Converting image to CMYK..."
@@ -449,13 +449,13 @@ def rgb_to_cmyk_imgs(src):
                 y_img.itemset((y,x), 255-y_val)
                 k_img.itemset((y,x), 255-k_val)
 
-    print "Done."
+    print "Done converting image to CMYK"
     return c_img, m_img, y_img, k_img
 
 
 cmyk_scale = 255
 
-def rgb_to_cmyk(r,g,b):
+def rgb_to_cmyk(r, g, b):
     if (r == 0) and (g == 0) and (b == 0):
         # black
         return 0, 0, 0, cmyk_scale
@@ -467,80 +467,178 @@ def rgb_to_cmyk(r,g,b):
 
     # extract out k [0,1]
     min_cmy = min(c, m, y)
-    c = (c - min_cmy) / (1 - min_cmy)
-    m = (m - min_cmy) / (1 - min_cmy)
-    y = (y - min_cmy) / (1 - min_cmy)
+    divisor = 1 - min_cmy
+    c = (c - min_cmy) / divisor
+    m = (m - min_cmy) / divisor
+    y = (y - min_cmy) / divisor
     k = min_cmy
 
     # rescale to the range [0,cmyk_scale]
     return c*cmyk_scale, m*cmyk_scale, y*cmyk_scale, k*cmyk_scale
 
 
-# shape: shape of output
-# spacing:  number of pixels between each line
-# rotation: angle in radians to tilt the entire hatchingf
+# shape:    shape of output
+# spacing:  number of pixels for spacing between each line
+# rotation: angle in degrees to tilt all the lines. 0 for horizontal, 90 for vertical
 # Returns a picture
 def gen_crosshatch(shape, spacing, rotation, is_bw=1):
+
     if spacing < 1:
         print "Crosshatch spacing too small!"
         return
 
-    offset = 0 # spacing / 3
+    height = shape[0]
+    width = shape[1]
+    longer_side = height if (height > width) else width
 
     # Make canvas
-    canvas = np.zeros(shape, np.uint8)
+    canvas = np.zeros((height, width), np.uint8)
     canvas[:,:] = 0
 
-    # Random rotation (CHANGE THIS VALUE BETWEEN 0 - TARGET_SCALE_LENGTH FOR DESIRED ROTATION. TARGET_SCALE_LENGTH = "+", 0 = "x".
-    rnd_rotation = rotation #TARGET_SCALE_LENGTH # random.randint(0, TARGET_SCALE_LENGTH*0.9)
+    # Make rotation between 0 and 180
+    while (rotation > 180):
+        rotation = rotation % 180
 
-    # Draw the lines on a blank canvas
-    for i in range((TARGET_SCALE_LENGTH/spacing)*2):
-        # parallel lines
-        x1 = 0
-        y1 = i * spacing + random.randint(-offset, offset)
-        x2 = TARGET_SCALE_LENGTH
-        y2 = i * spacing + random.randint(-offset, offset) + (rnd_rotation - TARGET_SCALE_LENGTH)
-        cv2.line(canvas, (x1,y1), (x2,y2), 255, 1)
+    while (rotation < 0):
+        rotation = rotation + 180
 
-        # perpendicular lines
-        x1 = 0
-        y1 = i * spacing + random.randint(-offset, offset)
-        x2 = TARGET_SCALE_LENGTH
-        y2 = i * spacing + random.randint(-offset, offset) + (TARGET_SCALE_LENGTH - rnd_rotation)
+    # Half of the angles can be mirrored
+    is_mirrored = False
+    if (rotation > 90):
+        is_mirrored = True
+        rotation = 180 - rotation
 
-        cv2.line(canvas, (y2-TARGET_SCALE_LENGTH, x2),(y1-TARGET_SCALE_LENGTH, x1), 255, 1)
+    pheta = math.radians(rotation)
+    if (rotation == 0):
+        # Horizontal lines
+        for y in xrange(0, height, spacing):
+            cv2.line(canvas, (0, y), (width, y), 255, 1)
 
-    # save image as cache, so it doesn't have to be processed again?
-    cv2.imwrite('crosshatch_' + str(spacing) + "_" + str(rotation) + ".jpg", canvas)
+    elif (rotation == 90):
+        # Vertical lines
+        for x in xrange(0, width, spacing):
+            cv2.line(canvas, (x, 0), (x, height), 255, 1)
+
+    elif (rotation < 45):
+        # Draw lines that begin from the left edge, and slopes upwards
+        # the " * 2 " so that some lines start from outside and beneath the image, and slope into the image
+        for y_start in xrange(0, longer_side * 2, spacing):
+            x_start = 0
+            x_end = float(y_start) / math.tan(pheta)
+            y_end = 0
+
+            x_start_draw = int(x_start)
+            y_start_draw = int(y_start)
+            x_end_draw = int(x_end)
+            y_end_draw = int(y_end)
+
+            # If x_end extends beyond the width
+            if (x_end >= width):
+                # Find new y-intercept at the right border
+                y_end_draw = int(y_start - (float(y_start) / float(x_end)) * width)
+                x_end_draw = int(width - 1)
+                if (y_end_draw >= height):
+                    break
+
+            # If y_start extends beyond bottom border
+            if (y_start >= height):
+                # Find new x-intercept at the bottom border
+                x_start_draw = int( (1 - float(height) / float(y_start) ) * x_end )
+                y_start_draw = int(height - 1)
+                if (x_start_draw >= width):
+                    break
+
+            if is_mirrored:
+                x_start_draw = width - x_start_draw
+                x_end_draw = width - x_end_draw
+
+            cv2.line(canvas, (x_start_draw, y_start_draw), (x_end_draw, y_end_draw), 255, 1)
+
+    elif (rotation >= 45 and rotation < 90):
+        # Draw lines that start from top border, slopes into left edge
+        for x_start in xrange(0, longer_side * 2, spacing):
+            y_start = 0
+            x_end = 0
+            y_end = x_start * math.tan(pheta)
+
+            x_start_draw = int(x_start)
+            y_start_draw = int(y_start)
+            x_end_draw = int(x_end)
+            y_end_draw = int(y_end)
+
+            if (y_end >= height):
+                x_end_draw = int( x_start * ( 1 - float(height) / float(y_end) ) )
+                y_end_draw = height
+                if x_end_draw > width:
+                    break
+
+            # If x_start is beyond right border
+            if (x_start > width):
+                y_start_draw = int( y_end * ( 1 - float(width)/float(x_start)) )
+                x_start_draw = width
+                if y_start_draw > height:
+                    break
+
+            if is_mirrored:
+                x_start_draw = width - x_start_draw
+                x_end_draw = width - x_end_draw
+
+            cv2.line(canvas, (x_start_draw, y_start_draw), (x_end_draw, y_end_draw), 255, 1)
+
+    else:
+        print "Rotation value is invalid:", rotation
 
     return canvas
 
+
 # DEBUG IMAGE for detected lines:
-def debug_detect_outline(lines, shape):
+def debug_detect_outline(lines, shape, endpoints_only=0):
+
     # Draw the lines on a blank canvas
     canvas = np.zeros(shape, np.uint8)
     canvas[:,:] = (255, 255, 255)
 
     for i, line in enumerate(lines):
-        # Make a HSV color for the line
-        hue = int( ( float(i) / len(lines) ) * 255 )
-        #hue = random.randint(0, 255)
-        val = 0
-        sat = 255
-        for j, coord in enumerate(line.points):
-            #x, y = coord.x, coord.y
-            #cv2.line(canvas, (x1,y1), (x2,y2), (0,0,0), 2)
-            # Make the HSV color and convert to RGB
-            col_hsv = (hue, sat, val)
-            col_bgr = cv2.cvtColor(np.array([[col_hsv]], np.uint8), cv2.COLOR_HSV2BGR)[0][0]
 
-            # Update the pixel
-            canvas[coord[1]][coord[0]] = col_bgr
+        if not endpoints_only:
+            # Make a HSV color for the line
+            hue = int( ( float(i) / len(lines) ) * 255 )
+            #hue = random.randint(0, 255)
+            val = 0
+            sat = 255
+            for j, coord in enumerate(line.points):
+                #x, y = coord.x, coord.y
+                #cv2.line(canvas, (x1,y1), (x2,y2), (0,0,0), 2)
+                # Make the HSV color and convert to RGB
+                col_hsv = (hue, sat, val)
+                col_bgr = cv2.cvtColor(np.array([[col_hsv]], np.uint8), cv2.COLOR_HSV2BGR)[0][0]
+
+                # Update the pixel
+                canvas[coord[1]][coord[0]] = col_bgr
+
+        else:
+            # Make line using the endpoints
+            start_point =  (line.points[0][0], line.points[0][1])
+            end_point =  (line.points[1][0], line.points[1][1])
+            thickness = 2
+            if (line.color == 'black'):
+                thickness = 1
+
+            cv2.line(canvas, start_point, end_point, COLORS[line.color], thickness)
 
     return canvas
+
 
 # Allows image to be displayed
 def wait():
 	cv2.waitKey()
 	cv2.destroyAllWindows()
+
+def get_perpendicular_angle(degrees):
+    while (degrees > 180):
+        degrees = degrees % 180
+
+    while (degrees < 0):
+        degrees = degrees + 180
+
+    return degrees + 90
