@@ -2,9 +2,14 @@ from image_processing.image_processing import process_img
 
 from Tkinter import *
 from tkFileDialog import askopenfilename
-from PIL import Image
+from PIL import Image, ImageTk
 import os
+
 brightness = 42
+
+DISPLAY_WIDTH = 1920
+DISPLAY_HEIGHT = 1080
+
 def open_image():
     global file_name
     
@@ -17,19 +22,13 @@ def open_image():
     loaded_image = ImageTk.PhotoImage(Image.open(file_name))
     display_image(loaded_image)
 
-
-
-
 def preview_image():     
     os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
 
 def take_picture():
     global file_name
     os.system("raspistill -o name.jpg -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
-    
-    # TO DO: take a picture
-    # i assume it would go someting like... take a picture using cam, save it in harddrive, and save the address onto 'file_name', and display it using 'display_image' function
-    
+
 def process_image():
     global file_name
     
@@ -40,23 +39,94 @@ def process_image():
     processed_lines, processed_image = process_img(file_name, 1, 0)
 
     # convert the Image object into a TkPhoto object
-    im = Image.fromarray(processed_image)
-    processed_image_tk = ImageTk.PhotoImage(image=im) 
+    im = Image.fromarray(processed_image)    
+    processed_photo_img = ImageTk.PhotoImage(image=im) 
 
-    display_image(processed_image_tk)
+    display_image(processed_photo_img)
     
 def draw_image():
     # TO DO: start drawing with robot arm
     return
     
-def display_image(image):
-    # TO DO: scale image size to fit the canvas size properly
+# only pass in PhotoImage
+def display_image(photo_img):
+    
+    #photo_img = scale(photo_img)
+
+    img_w = photo_img.width()
+    img_h = photo_img.height()
+    root.geometry("" + str(img_w) + "x" + str(img_h) + "")
     
     canvas.delete("all")
-    canvas.image = image
+    canvas.photo_img = photo_img
     canvas.pack()
-    canvas.create_image(0, 0, anchor = NW, image=image)
+    canvas.create_image(0, 0, anchor = NW, image=photo_img)
+
+# work in progress
+def scale(photo_img):
+
+    img_w = photo_img.width()
+    img_h = photo_img.height()
     
+    new_h = img_h
+    new_w = img_w
+    
+    if img_w > DISPLAY_WIDTH:
+        ratio = DISPLAY_WIDTH/img_w
+        new_h = int(img_h * ratio)
+        new_w = int(img_w * ratio)
+    
+    if new_h > DISPLAY_HEIGHT:
+        ratio = DISPLAY_HEIGHT/new_h
+        new_h = int(new_h * ratio)
+        new_w = int(new_w * ratio)
+
+    scale_w = new_w/img_w
+    scale_h = new_h/img_h
+    photo_img.zoom(int(scale_w), int(scale_h))
+    
+    
+    return photo_img
+    
+def settings_window():
+    master = Tk()
+    master.title("Settings")
+    master.geometry("180x350");
+    Label(master, text="").pack()
+
+    brightness = Scale(master, from_=0, to=100, orient=HORIZONTAL)
+    brightness.set(50)
+    brightness.pack(fill=X,padx=10) # TEST TEST TEST
+    Label(master, text="Brightness").pack()
+    #Button(master, text='Set Brightness', command=show_value_brightness).pack()
+
+    #master = Tk()
+    sharpness = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
+    sharpness.set(0)
+    sharpness.pack()
+    Label(master, text="Sharpness").pack()
+    #Button(master, text='Set Sharpness', command=show_value_sharpness).pack()
+
+    #master = Tk()
+    contrast = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
+    contrast.set(0)
+    contrast.pack()
+    Label(master, text="Contrast").pack()
+    #Button(master, text='Set Contrast', command=show_value_contrast).pack()
+
+    #master = Tk()
+    saturation = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
+    saturation.set(50)
+    saturation.pack()
+    Label(master, text="Saturation").pack()
+    #Button(master, text='Set Saturation', command=show_value_saturation).pack()
+
+    #master = Tk()
+    iso = Scale(master, from_=0, to=200, orient=HORIZONTAL)
+    iso.set(0)
+    iso.pack()
+    Label(master, text="ISO").pack()
+    #Button(master, text='Set ISO', command=show_value_iso).pack()
 
 def show_value_brightness():
     print ("Brightness set to: ")
@@ -77,10 +147,11 @@ def show_value_saturation():
 def show_value_iso():
     print ("ISO set to: ")
     print (iso.get())
+
 # Set up
 root = Tk()
 root.title("Image Processor")
-root.geometry("300x300");
+root.geometry("330x330")
 
 # Menu bar set up
 menubar = Menu(root)
@@ -90,41 +161,12 @@ filemenu.add_command(label="Open Image", command=open_image)
 filemenu.add_command(label="Take Picture", command=take_picture)
 filemenu.add_command(label="Process", command=process_image)
 filemenu.add_command(label="Draw", command=draw_image)
+filemenu.add_command(label="Image Settings", command=settings_window)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Functions", menu=filemenu)
-
-master = Tk()
-brightness = Scale(master, from_=0, to=100, orient=HORIZONTAL)
-brightness.set(50)
-brightness.pack()
-Button(master, text='Set Brightness', command=show_value_brightness).pack()
-
-master = Tk()
-sharpness = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
-sharpness.set(0)
-sharpness.pack()
-Button(master, text='Set Sharpness', command=show_value_sharpness).pack()
-
-master = Tk()
-contrast = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
-contrast.set(0)
-contrast.pack()
-Button(master, text='Set Contrast', command=show_value_contrast).pack()
-
-
-master = Tk()
-saturation = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
-saturation.set(50)
-saturation.pack()
-Button(master, text='Set Saturation', command=show_value_saturation).pack()
-
-master = Tk()
-iso = Scale(master, from_=0, to=200, orient=HORIZONTAL)
-iso.set(0)
-iso.pack()
-Button(master, text='Set ISO', command=show_value_iso).pack()
-
+    
+"""
 def second_window():
  
     subwindow = Toplevel(window)
@@ -174,10 +216,10 @@ def timed_window():
     lab.pack(padx=20, pady=20)
  
     subwindow.after(100, countdown) # 100 miliseconds
- 
+
 #-----------------------------------------------    
 # mainwindow
- 
+
 window = Tk()
 window.title('company name')
 window.configure(bg='purple')
@@ -185,7 +227,7 @@ label = Label(window, text='company name with slogan')
 label.grid(row=0, column=1)
 btn_nxt = Button(window, bg='purple',  text='Enter', command=second_window)  
 btn_nxt.grid(row=1, column=1, padx=100, pady=100)
-
+"""
 
 # Canvas set up
 canvas = Canvas(root, width = 1920, height = 1080)
