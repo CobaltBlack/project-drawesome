@@ -37,10 +37,15 @@ class Line:
 
 
 # Main image processing function
-# Returns filename of drawing instructions
-def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit"):
+# Returns array of line drawing instructions
+def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
 
     print "Running image_processing module..."
+
+    # Test instructions
+    if use_test_instructions:
+        print "Returning test instructions!"
+        return get_test_instructions(), []
 
     # Load image
     src = cv2.imread(filename)
@@ -642,3 +647,45 @@ def get_perpendicular_angle(degrees):
         degrees = degrees + 180
 
     return degrees + 90
+
+
+def get_test_instructions():
+    lines = []
+
+    color = 'black'
+
+    # Vertical line
+    points = []
+    points.append([0,  0])
+    points.append([0, 200])
+    points.append([0, 400])
+    points.append([0, 600])
+    points.append([0, 800])
+    points.append([0, 1000])
+    points.append([0, 1200])
+    points.append([0, 1400])
+    points.append([0, 1600])
+    test_line = Line(color, points)
+    lines.append(test_line)
+
+    # Horizontal line
+    points = []
+    points.append([ 0, 25])
+    points.append([50, 25])
+    test_line = Line(color, points)
+    # lines.append(test_line)
+
+    # Diagonal lines
+    points = []
+    points.append([ 0,  0])
+    points.append([50, 50])
+    test_line = Line(color, points)
+    # lines.append(test_line)
+
+    points = []
+    points.append([50,  0])
+    points.append([ 0, 50])
+    test_line = Line(color, points)
+    # lines.append(test_line)
+
+    return lines

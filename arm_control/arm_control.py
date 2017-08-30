@@ -13,7 +13,7 @@ Y_REACH_MIN = 0 # init in calculate_arm_reach()
 BASE_TO_CANVAS_DISTANCE = 100.0 # TBD. Z Distance from arm base to canvas
 
 PEN_LIFT_DISTANCE   = 10.0                              # Distance to lift pen off the canvas (mm)
-PEN_DOWN_Z          = -(BASE_TO_CANVAS_DISTANCE - L3)   # z of joint that connects L3
+PEN_DOWN_Z          = BASE_TO_CANVAS_DISTANCE - L3      # z of joint that connects L3
 PEN_UP_Z            = PEN_DOWN_Z - PEN_LIFT_DISTANCE    # unit in mm
 
 CANVAS_X_MM = 215.9 # units in mm
@@ -22,7 +22,7 @@ CANVAS_Y_MM = 279.4 # units in mm
 CANVAS_X_PX = 1080
 CANVAS_Y_PX = 1920
 
-PX_TO_MM_RATIO = CANVAS_X_PX / CANVAS_X_MM
+PX_TO_MM_RATIO = CANVAS_Y_PX / CANVAS_Y_MM
 
 ARM_SPEED_MM_PER_S = 10
 
@@ -56,9 +56,11 @@ def start_drawing(instructions):
     print "ARM_MAX_LENGTH:", ARM_MAX_LENGTH
     print "PX_TO_MM_RATIO:", PX_TO_MM_RATIO
 
+    print "PEN_DOWN_Z:", PEN_DOWN_Z
+    print "PEN_UP_Z:", PEN_UP_Z
+
     for line in instructions:
         draw_line(line)
-        pass
 
     print "arm_control module end!"
 
@@ -84,6 +86,8 @@ def draw_line(line):
 def move_to(coordinate):
     global curr_x, curr_y
 
+    print "move_to coordinate", coordinate
+
     target_x = coordinate[0]
     target_y = coordinate[1]
 
@@ -99,10 +103,12 @@ def move_to(coordinate):
 
     # Convert units to mm
     target_x_mm = px_to_mm(target_x)
-    target_y_mm = px_to_mm(target_y) + GROUND_TO_CANVAS_DISTANCE
+    # Invert y value, because origin is at floor level. In OpenCV, origin is top left corner.
+    target_y_mm = px_to_mm(CANVAS_Y_PX - target_y) + GROUND_TO_CANVAS_DISTANCE
 
     # Get angle of final positions of each arm motor
-    angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]])
+    # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
+    angles = points_to_angles(PEN_DOWN_Z, target_y_mm)
 
     # Calculate how fast to move the motors (in seconds)
     distance_to_target = distance(curr_x, curr_y, target_x, target_y)
@@ -115,31 +121,35 @@ def move_to(coordinate):
 
 
 def pen_up():
+    print "pen_up"
     # Get angle of final positions of each arm motor
     # Use current y and hardcoded Z value
-    curr_y_mm = px_to_mm(curr_y) + GROUND_TO_CANVAS_DISTANCE
-    angles = points_to_angles([[curr_y_mm], [PEN_UP_Z]])
+    curr_y_mm = px_to_mm(CANVAS_Y_PX - curr_y) + GROUND_TO_CANVAS_DISTANCE
+    angles = points_to_angles(PEN_UP_Z, curr_y_mm)
 
     # TODO: Send angles to servo control
 
 
 def pen_down():
+    print "pen_down"
     # Get angle of final positions of each arm motor
     # Use current y and hardcoded Z value
-    curr_y_mm = px_to_mm(curr_y) + GROUND_TO_CANVAS_DISTANCE
-    angles = points_to_angles([[curr_y_mm], [PEN_DOWN_Z]])
+    curr_y_mm = px_to_mm(CANVAS_Y_PX - curr_y) + GROUND_TO_CANVAS_DISTANCE
+    angles = points_to_angles(PEN_DOWN_Z, curr_y_mm)
 
     # TODO: Send angles to servo control
 
 
 def select_pen_color(color):
     # Find angle of corresponding color based on map
-    
+
     # Send angle to servo control
     pass
-    
-    
-def points_to_angles(points):
+
+
+def points_to_angles_old(points):
+
+    print "points_to_angles start:", points
 
     # Defining the end effector
     # z represents "depth" of the tip of the arm
@@ -159,11 +169,13 @@ def points_to_angles(points):
     rad_Theta1 = [None] * len(z)
     Theta1_Deg = [None] * len(z)
 
+    Theta3_Deg = [None] * len(z)
+
     for i in range(len(z)):
         # Check point is within arm's reach
-        if (distance(0, 0, y[i], z[i]) >= ARM_MAX_LENGTH):
-            print "Error: Arm cannot reach y=", y[i], "and z=", z[i]
-            continue
+        # if (distance(0, 0, y[i], z[i]) >= ARM_MAX_LENGTH):
+            # print "Error: Arm cannot reach y=", y[i], "and z=", z[i]
+            # continue
 
         # The length from origin to end effector initializtion
         sqrt_input = 1 - ( ( (z[i]**2 + y[i]**2 - L1**2 - L2**2) / (2 * L2 * L1) ) ** 2 )
@@ -188,14 +200,37 @@ def points_to_angles(points):
         Theta1_Deg[i] = degrees(rad_Theta1[i]);
 
         # TODO: Calculate theta3 (angle of 3rd servo)
+        Theta3_Deg[i] = 360 - Theta1_Deg[i] - Theta2_Deg[i]
 
 
     # test print
-    # print "===== Theta1_Deg[], Theta2_Deg[] ====="
-    # print Theta1_Deg
-    # print Theta2_Deg
+    print("VERSION_1 theta1={0}, theta2={1}, theta3={2}".format(Theta1_Deg, Theta2_Deg, Theta3_Deg))
 
-    return Theta1_Deg, Theta2_Deg
+    return Theta1_Deg, Theta2_Deg, Theta3_Deg
+
+
+def points_to_angles(x, y):
+    distance_to_origin = distance(0, 0, x, y)
+
+    # Angle between x-axis and line from origin to (x,y)
+    theta1_a = atan2(y, x)
+
+    # L2 is the opposite side for law of cosines.
+    theta1_b = law_of_cosines(distance_to_origin, L1, L2)
+
+    theta1 = theta1_a + theta1_b
+
+    # distance_to_origin is the opposite side for law of cosines
+    theta2 = law_of_cosines(L1, L2, distance_to_origin)
+
+    # Make L3 form right angle with verticle canvas
+    # This makes a pentagon shape, with the 3 arm segments, canvas, and ground as the sides
+    # Pentagon angles add up to 540. We know angle between canvas and ground, and canvas and pen are 90 deg
+    theta3 = ( 2 * pi ) - theta1 - theta2
+
+    # test print
+    print("points_to_angles results: theta1={0}, theta2={1}, theta3={2}".format(degrees(theta1), degrees(theta2), degrees(theta3)))
+    return degrees(theta1), degrees(theta2), degrees(theta3)
 
 
 def calculate_arm_reach():
@@ -209,6 +244,14 @@ def distance(x1, y1, x2, y2):
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
     return sqrt(dy**2 + dx**2)
+
+
+def law_of_cosines(a, b, c):
+    acos_input = (a*a + b*b - c*c) / (2 * a * b)
+    if not (-1 < acos_input < 1):
+        print "Error: Cannot acos({0})".format(acos_input)
+        return 0
+    return acos( acos_input )
 
 
 def mm_to_px(mm):
