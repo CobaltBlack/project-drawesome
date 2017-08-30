@@ -1,3 +1,10 @@
+'''
+image_processing.py
+
+This file converts the raw camera image into drawing instructions for the robot arm to follow.
+It creates lines for drawing detected edges, and for shading the brightness/color
+'''
+
 import cv2
 import math
 import numpy as np

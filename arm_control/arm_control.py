@@ -1,3 +1,10 @@
+'''
+arm_control.py
+
+This file is for converting the logical drawing instructions (from image processing) into physical units and arm angles.
+Then, it sends the physical instructions to motor_control.py to move the actual arm motors.
+'''
+
 from math import *
 
 # Arm segment lengths
