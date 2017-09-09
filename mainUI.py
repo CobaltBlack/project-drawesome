@@ -5,7 +5,12 @@ from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
 
-brightness = 42
+
+global sharpness
+global contrast
+global brightness
+global saturation
+global iso
 
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
@@ -24,6 +29,11 @@ def open_image():
 
 def preview_image():     
     os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    print sharpness.get()
+    print contrast.get()
+    print brightness.get()
+    print saturation.get()
+    print iso.get()
 
 def take_picture():
     global file_name
@@ -94,13 +104,15 @@ def settings_window():
     master.geometry("180x350");
     Label(master, text="").pack()
 
+    global brightness
     brightness = Scale(master, from_=0, to=100, orient=HORIZONTAL)
     brightness.set(50)
-    brightness.pack(fill=X,padx=10) # TEST TEST TEST
+    brightness.pack() #fill=X,padx=10) # TEST TEST TEST
     Label(master, text="Brightness").pack()
     #Button(master, text='Set Brightness', command=show_value_brightness).pack()
 
     #master = Tk()
+    global sharpness
     sharpness = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
     sharpness.set(0)
     sharpness.pack()
@@ -108,6 +120,7 @@ def settings_window():
     #Button(master, text='Set Sharpness', command=show_value_sharpness).pack()
 
     #master = Tk()
+    global contrast
     contrast = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
     contrast.set(0)
     contrast.pack()
@@ -115,6 +128,7 @@ def settings_window():
     #Button(master, text='Set Contrast', command=show_value_contrast).pack()
 
     #master = Tk()
+    global saturation
     saturation = Scale(master, from_=-100, to=100, orient=HORIZONTAL)
     saturation.set(50)
     saturation.pack()
@@ -122,6 +136,7 @@ def settings_window():
     #Button(master, text='Set Saturation', command=show_value_saturation).pack()
 
     #master = Tk()
+    global iso
     iso = Scale(master, from_=0, to=200, orient=HORIZONTAL)
     iso.set(0)
     iso.pack()
@@ -165,7 +180,39 @@ filemenu.add_command(label="Image Settings", command=settings_window)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Functions", menu=filemenu)
-    
+
+
+
+# Status bar
+status = Label(root, text="Loading dank memes...", bd = 1, relief = SUNKEN, anchor = W)
+status.pack(side = BOTTOM, fill = X)
+
+
+
+# Button bar
+toolbar = Frame(root)
+#toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+# Buttons
+b = Button(toolbar, text="LOAD", width=9, command=open_image)
+b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+b = Button(toolbar, text="CAPTURE", width=9, command=take_picture)
+b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+b = Button(toolbar, text="PROCESS", width=9, command=process_image)
+b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+b = Button(toolbar, text="DRAW", width=9, command=draw_image)
+b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+
+toolbar.pack(side=BOTTOM, fill=X)
+
+# Button bar
+separator = Frame(height=2, bd=1, relief=SUNKEN)
+separator.pack(side = BOTTOM, fill = X)
+#separator.pack(fill=X, padx=5, pady=5)
+
+
+
+
 """
 def second_window():
  
