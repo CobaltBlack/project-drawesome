@@ -7,6 +7,8 @@ Then, it sends the physical instructions to motor_control.py to move the actual 
 
 from math import *
 
+from motor_control import MotorController, MotorCommand
+
 # Arm segment lengths
 L1 = 170.0 # units in mm`
 L2 = 150.0
@@ -31,122 +33,140 @@ CANVAS_Y_PX = 1920
 
 PX_TO_MM_RATIO = CANVAS_Y_PX / CANVAS_Y_MM
 
-ARM_SPEED_MM_PER_S = 10
-
-curr_x = 0
-curr_y = 0
+ARM_SPEED_MM_PER_S = 50.0
+PEN_UP_DOWN_DURATION = 0.1
 
 
-class ServoCommand:
-    def __init__(self, theta1, theta2, rail_x_mm, pen_select_angle, move_duration):
-        self.theta1 = theta1    # Angle of base arm joint in degrees
-        self.theta2 = theta2    # Angle of 2nd arm joint in degrees
-        self.theta3 = theta3    # Angle of 3rd arm joint in degrees
-        self.pen_select_angle = pen_select_angle    # Angle of pen selector servo in degrees
-        self.rail_x_mm = rail_x_mm  # x position of rail. Leftmost is 0, rightmost is CANVAS_X_MM
-        self.move_duration = move_duration  # Time in seconds to perform the movement
+class ArmController:
+
+    def __init__(self):
+        print ("Initializing ArmController...")
+        self.curr_x = 0
+        self.curr_y = 0
+        self.curr_z = PEN_UP_Z
+        self.instructions = []
+        self.motor_commands = []
 
 
-# Main method
-def start_drawing(instructions):
-
-    # Initialize robot arm stuffs
-    curr_x = 0
-    curr_y = 0
-
-    # Calculate reachable y values
-    calculate_arm_reach()
-
-    # Process lines in each instruction
-    print "arm_control module start..."
-    print "Number of instructions received:", len(instructions)
-    print "ARM_MAX_LENGTH:", ARM_MAX_LENGTH
-    print "PX_TO_MM_RATIO:", PX_TO_MM_RATIO
-
-    print "PEN_DOWN_Z:", PEN_DOWN_Z
-    print "PEN_UP_Z:", PEN_UP_Z
-
-    for line in instructions:
-        draw_line(line)
-
-    print "arm_control module end!"
+    # Loads instructions from image processing
+    def load_instructions(self, instructions):
+        self.instructions = instructions
+        print ("Loaded {0} drawing instruction(s)".format(len(instructions)))
 
 
-def draw_line(line):
-    #print 'Drawing line with color:', line.color, '\tStart:', line.points[0], '\tEnd:', line.points[-1]
-    # pen-up and select correct color
-    pen_up()
-    select_pen_color(line.color)
+    # Processes the loaded instructions, then calls starts running the motors on a new thread
+    def draw_loaded_instructions(self):
 
-    # move to starting point
-    move_to(line.points[0])
+        # Convert drawing instructions into motor commands
+        self.motor_commands = []
+        for line in self.instructions:
+            commands = self.create_commands_for_line(line)
 
-    pen_down()
+        # Load commands into MotorController
+        #mc = MotorController()
 
-    # Move pen to each coordinate of the line (connect-the-dots)
-    for point in line.points:
-        move_to(point)
+        # debug
+        #for cmd in self.motor_commands:
+        #    print cmd.to_string()
 
-    pen_up()
-
-
-def move_to(coordinate):
-    global curr_x, curr_y
-
-    print "move_to coordinate", coordinate
-
-    target_x = coordinate[0]
-    target_y = coordinate[1]
-
-    # Skip if already on same pixel
-    if target_x == curr_x and target_y == curr_y:
-        return
-
-    curr_x = target_x
-    curr_y = target_y
-
-    # The arm controls y and z (vertically, and depth of arm)
-    # Rail controls x (horizontally)
-
-    # Convert units to mm
-    target_x_mm = px_to_mm(target_x)
-    # Invert y value, because origin is at floor level. In OpenCV, origin is top left corner.
-    target_y_mm = px_to_mm(CANVAS_Y_PX - target_y) + GROUND_TO_CANVAS_DISTANCE
-
-    # Get angle of final positions of each arm motor
-    # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
-    angles = points_to_angles(PEN_DOWN_Z, target_y_mm)
-
-    # Calculate how fast to move the motors (in seconds)
-    distance_to_target = distance(curr_x, curr_y, target_x, target_y)
-    distance_to_target_mm = px_to_mm(distance_to_target)
-    move_duration = distance_to_target_mm / ARM_SPEED_MM_PER_S
-
-    # TODO: Actually move the servos
-    # activate_arm_servos(angles, move_duration)
-    # activate_rail_servos(target_y_mm, move_duration)
+        # Start draw on seperate thread, so everything else can keep running
 
 
-def pen_up():
-    print "pen_up"
-    # Get angle of final positions of each arm motor
-    # Use current y and hardcoded Z value
-    curr_y_mm = px_to_mm(CANVAS_Y_PX - curr_y) + GROUND_TO_CANVAS_DISTANCE
-    angles = points_to_angles(PEN_UP_Z, curr_y_mm)
-
-    # TODO: Send angles to servo control
+        # Update status messages etc
 
 
-def pen_down():
-    print "pen_down"
-    # Get angle of final positions of each arm motor
-    # Use current y and hardcoded Z value
-    curr_y_mm = px_to_mm(CANVAS_Y_PX - curr_y) + GROUND_TO_CANVAS_DISTANCE
-    angles = points_to_angles(PEN_DOWN_Z, curr_y_mm)
+    # Parses a line instruction into motor commands
+    def create_commands_for_line(self, line):
+        # Pen-up and select color
+        self.pen_up()
 
-    # TODO: Send angles to servo control
+        # Move to start of line
+        self.move_to(line.points[0])
+
+        # Move pen down to canvas
+        self.pen_down()
+
+         # Move pen to each coordinate of the line (connect-the-dots)
+        for point in line.points:
+            self.move_to(point)
+
+        self.pen_up()
 
 
+    def move_to(self, coordinate):
+        # print "move_to coordinate", coordinate
+
+        target_x = coordinate[0]
+        target_y = coordinate[1]
+
+        # Skip if already on same pixel
+        if target_x == self.curr_x and target_y == self.curr_y:
+            return
+
+        # The arm controls y and z (vertically, and depth of arm)
+        # Rail controls x (horizontally)
+
+        # Convert units to mm
+        target_x_mm = px_to_mm(target_x)
+        # Invert y value, because origin is at floor level. In OpenCV, origin is top left corner.
+        target_y_mm = px_to_mm(CANVAS_Y_PX - target_y) + GROUND_TO_CANVAS_DISTANCE
+
+        # Get angle of final positions of each arm motor
+        # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
+        theta1, theta2, theta3 = points_to_angles(self.curr_z, target_y_mm)
+
+        # Calculate how fast to move the motors (in seconds)
+        distance_to_target = distance(self.curr_x, self.curr_y, target_x, target_y)
+        distance_to_target_mm = px_to_mm(distance_to_target)
+        move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
+
+        # Add to motor command list
+        new_command = MotorCommand(theta1, theta2, theta3, target_x_mm, 0, move_duration)
+        self.motor_commands.append(new_command)
+
+        self.curr_x = target_x
+        self.curr_y = target_y
+
+
+    def pen_up(self):
+
+        # Skip if pen is already up
+        if (self.curr_z == PEN_UP_Z):
+            return
+
+        # Get angle of final positions of each arm motor
+        # Use current y and hardcoded Z value
+        curr_y_mm = px_to_mm(CANVAS_Y_PX - self.curr_y) + GROUND_TO_CANVAS_DISTANCE
+        theta1, theta2, theta3 = points_to_angles(PEN_UP_Z, curr_y_mm)
+        self.curr_z = PEN_UP_Z
+
+        # Add to motor command list
+        new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
+        self.motor_commands.append(new_command)
+
+
+    def pen_down(self):
+
+        # Skip if pen is already down
+        if (self.curr_z == PEN_DOWN_Z):
+            return
+
+        # Get angle of final positions of each arm motor
+        # Use current y and hardcoded Z value
+        curr_y_mm = px_to_mm(CANVAS_Y_PX - self.curr_y) + GROUND_TO_CANVAS_DISTANCE
+        theta1, theta2, theta3 = points_to_angles(PEN_DOWN_Z, curr_y_mm)
+        self.curr_z = PEN_DOWN_Z
+
+        # Add to motor command list
+        new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
+        self.motor_commands.append(new_command)
+
+
+
+# end ArmController
+
+
+# Function to support selecting pen colors
 def select_pen_color(color):
     # Find angle of corresponding color based on map
 
@@ -236,15 +256,8 @@ def points_to_angles(x, y):
     theta3 = ( 2 * pi ) - theta1 - theta2
 
     # test print
-    print("points_to_angles results: theta1={0}, theta2={1}, theta3={2}".format(degrees(theta1), degrees(theta2), degrees(theta3)))
+    # print("points_to_angles results: theta1={0}, theta2={1}, theta3={2}".format(degrees(theta1), degrees(theta2), degrees(theta3)))
     return degrees(theta1), degrees(theta2), degrees(theta3)
-
-
-def calculate_arm_reach():
-    global Y_REACH_MAX, Y_REACH_MIN
-
-    # TODO eric: learn how math works
-    pass
 
 
 def distance(x1, y1, x2, y2):

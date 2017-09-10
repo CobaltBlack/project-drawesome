@@ -677,22 +677,22 @@ def get_test_instructions():
 
     # Horizontal line
     points = []
-    points.append([ 0, 25])
-    points.append([50, 25])
+    points.append([  0, 150])
+    points.append([300, 150])
     test_line = Line(color, points)
-    # lines.append(test_line)
+    lines.append(test_line)
 
     # Diagonal lines
     points = []
-    points.append([ 0,  0])
-    points.append([50, 50])
+    points.append([  0,   0])
+    points.append([300, 300])
     test_line = Line(color, points)
-    # lines.append(test_line)
+    lines.append(test_line)
 
     points = []
-    points.append([50,  0])
-    points.append([ 0, 50])
+    points.append([300,   0])
+    points.append([  0, 300])
     test_line = Line(color, points)
-    # lines.append(test_line)
+    lines.append(test_line)
 
     return lines
