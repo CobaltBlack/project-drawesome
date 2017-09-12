@@ -1,62 +1,86 @@
-from image_processing.image_processing import process_img
+from image_processing.image_processing import ImageProcessor
+from arm_control.arm_control import ArmController
 
 from Tkinter import *
 from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
 
-
-global sharpness
-global contrast
-global brightness
-global saturation
-global iso
-
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
 
 def open_image():
+    update_status_message("Image loading...")
+
     global file_name
-    
     file_name = askopenfilename()
     
     if not file_name:
         print "Open image canceled!"
+        update_status_message("Image loading canceled!")
         return
+        
+    ip.load_image(file_name) # load in image to image processor
+    display_image(ImageTk.PhotoImage(Image.open(file_name)))
     
-    loaded_image = ImageTk.PhotoImage(Image.open(file_name))
-    display_image(loaded_image)
+    update_status_message("Image loaded!")
 
 def preview_image():     
-    os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    #os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    os.system("raspistill -t 5000")
+    
+    # test
+    """
     print sharpness.get()
     print contrast.get()
     print brightness.get()
     print saturation.get()
     print iso.get()
-
+    """
+    
 def take_picture():
-    global file_name
-    os.system("raspistill -o name.jpg -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    update_status_message("Image capturing...")
+    
+    pi_photo_name = "name.jpg"
+    #os.system("raspistill -o " + pi_photo_name + " -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    os.system("raspistill -o " + pi_photo_name)
+    
+    ip.load_image(pi_photo_name) # load in image to image processor
+    display_image(ImageTk.PhotoImage(Image.open(pi_photo_name)))
+    
+    update_status_messageupdate_status_message("Image captured!")
 
 def process_image():
-    global file_name
+    update_status_message("Image processing...")
     
+    global file_name
     if not file_name:
         print "No loaded image!"
+        update_status_message("No image!")
         return
-    
-    processed_lines, processed_image = process_img(file_name, 1, 0)
 
+    # process image
+    drawing_instructions = ip.process_image()
+    
+    # load instructions to arm controller
+    ac.load_instructions(drawing_instructions)
+        
     # convert the Image object into a TkPhoto object
-    im = Image.fromarray(processed_image)    
+    im = Image.fromarray(ip.get_preview_image())    
     processed_photo_img = ImageTk.PhotoImage(image=im) 
 
+    # preview
     display_image(processed_photo_img)
     
+    update_status_message("Image processed!")
+    
 def draw_image():
-    # TO DO: start drawing with robot arm
-    return
+    update_status_message("Image drawing...")
+    
+    # TO DO: start drawing with robot arm - 
+    # ac.draw_loaded_instructions()
+    
+    update_status_message("Image drawn!")
     
 # only pass in PhotoImage
 def display_image(photo_img):
@@ -71,10 +95,12 @@ def display_image(photo_img):
     canvas.photo_img = photo_img
     canvas.pack()
     canvas.create_image(0, 0, anchor = NW, image=photo_img)
+    
+def update_status_message(message):
+    status.config(text=message)
 
 # work in progress
 def scale(photo_img):
-
     img_w = photo_img.width()
     img_h = photo_img.height()
     
@@ -94,7 +120,6 @@ def scale(photo_img):
     scale_w = new_w/img_w
     scale_h = new_h/img_h
     photo_img.zoom(int(scale_w), int(scale_h))
-    
     
     return photo_img
     
@@ -168,30 +193,30 @@ root = Tk()
 root.title("Image Processor")
 root.geometry("330x330")
 
+# initialization
+file_name = ""
+ip = ImageProcessor()
+ac = ArmController()
+
 # Menu bar set up
 menubar = Menu(root)
 filemenu = Menu(menubar, tearoff=0)
 filemenu.add_command(label="Preview", command=preview_image)
-filemenu.add_command(label="Open Image", command=open_image)
-filemenu.add_command(label="Take Picture", command=take_picture)
-filemenu.add_command(label="Process", command=process_image)
-filemenu.add_command(label="Draw", command=draw_image)
+#filemenu.add_command(label="Open Image", command=open_image)
+#filemenu.add_command(label="Take Picture", command=take_picture)
+#filemenu.add_command(label="Process", command=process_image)
+#filemenu.add_command(label="Draw", command=draw_image)
 filemenu.add_command(label="Image Settings", command=settings_window)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
-menubar.add_cascade(label="Functions", menu=filemenu)
-
-
+menubar.add_cascade(label="Options", menu=filemenu)
 
 # Status bar
 status = Label(root, text="Loading dank memes...", bd = 1, relief = SUNKEN, anchor = W)
 status.pack(side = BOTTOM, fill = X)
 
-
-
 # Button bar
-toolbar = Frame(root)
-#toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+toolbar = Frame(root) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
 toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
 # Buttons
 b = Button(toolbar, text="LOAD", width=9, command=open_image)
@@ -202,16 +227,16 @@ b = Button(toolbar, text="PROCESS", width=9, command=process_image)
 b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
 b = Button(toolbar, text="DRAW", width=9, command=draw_image)
 b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-
 toolbar.pack(side=BOTTOM, fill=X)
 
 # Button bar
 separator = Frame(height=2, bd=1, relief=SUNKEN)
-separator.pack(side = BOTTOM, fill = X)
-#separator.pack(fill=X, padx=5, pady=5)
+separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 
-
-
+# Canvas set up
+canvas = Canvas(root, width = 1920, height = 1080)
+root.config(menu=menubar)
+root.mainloop()
 
 """
 def second_window():
@@ -275,11 +300,3 @@ label.grid(row=0, column=1)
 btn_nxt = Button(window, bg='purple',  text='Enter', command=second_window)  
 btn_nxt.grid(row=1, column=1, padx=100, pady=100)
 """
-
-# Canvas set up
-canvas = Canvas(root, width = 1920, height = 1080)
-
-root.config(menu=menubar)
-root.mainloop()
-
-
