@@ -43,6 +43,80 @@ class Line:
         self.points = points
 
 
+class ImageProcessor:
+    def __init__(self):
+        self.is_image_loaded = False
+        self.is_image_processed = False
+
+
+    def load_image(self, filename):
+        print "Loading", filename
+        self.src = cv2.imread(filename)
+        if self.src is None:
+            print "File", filename, "does not exist!"
+            return
+
+        self.is_image_loaded = True
+        self.is_image_processed = False
+
+
+    def process_image(self, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
+        if not self.is_image_loaded:
+            print "Error: No image is not loaded!"
+            return
+
+        # Scale and crop image to appropriate proportions and size
+        self.scaled = scale(self.src)
+
+        # Crop or fit image into aspect ratio
+        if (crop_mode == "fit"):
+            self.cropped = fit_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
+        elif (crop_mode == "crop"):
+            self.cropped = crop_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
+
+        # Detect edges
+        self.blurred = blur(self.cropped)
+        self.edges = detect_edges(self.blurred)
+
+        # Use edges to detect lines
+        lines = detect_outline(self.edges)
+        if lines is None:
+            print "Error: No lines found"
+            wait()
+            return
+
+        # ### DEBUG IMAGE for detected lines:
+        lines_detected_img = debug_detect_outline(lines, self.cropped.shape)
+
+        # Fill the image by shading
+        shading_lines = []
+        if is_bw:
+            shading_lines, shaded_img = shade_img_bw(self.cropped)
+        else:
+            shading_lines, shaded_img = shade_img_color(self.cropped)
+
+        lines.extend(shading_lines)
+
+        self.preview_line_image = cv2.bitwise_and(shaded_img, lines_detected_img)
+
+        self.is_image_processed = True
+
+        return lines
+
+
+    def get_preview_image(self):
+        if self.is_image_processed:
+            return self.preview_line_image
+        return []
+
+
+    def get_source_image(self):
+        return self.src
+
+
+# end class ImageProcessor
+
+
 # Main image processing function
 # Returns array of line drawing instructions
 def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
@@ -349,7 +423,7 @@ def shade_img_bw(src):
 
     # end for-loop
 
-    print 'len(lines)', len(lines)
+    print 'Shading len(lines)', len(lines)
 
     debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
 
