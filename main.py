@@ -22,7 +22,7 @@ def main():
 
     ip = ImageProcessor()
     ip.load_image(TEST_PICS_DIRECTORY + img_file)
-    drawing_instructions = ip.process_image()
+    drawing_instructions = ip.process_image(is_bw=1, enable_debug=1)
 
     ip.get_preview_image()
 

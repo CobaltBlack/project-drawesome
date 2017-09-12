@@ -45,6 +45,7 @@ class Line:
 
 class ImageProcessor:
     def __init__(self):
+        print ("Initializing ImageProcessor...")
         self.is_image_loaded = False
         self.is_image_processed = False
 
@@ -66,7 +67,7 @@ class ImageProcessor:
             return
 
         # Scale and crop image to appropriate proportions and size
-        self.scaled = scale(self.src)
+        self.scaled = scale(self.src, TARGET_SCALE_LENGTH)
 
         # Crop or fit image into aspect ratio
         if (crop_mode == "fit"):
@@ -101,7 +102,14 @@ class ImageProcessor:
 
         self.is_image_processed = True
 
+        if enable_debug:
+            # cv2.imshow('Original scaled', cropped)
+            # cv2.imshow('Outline detected', lines_detected_img)
+            cv2.imshow('OUtline + shading', self.preview_line_image)
+            wait()
+
         return lines
+
 
 
     def get_preview_image(self):
@@ -178,15 +186,15 @@ def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_ins
 
 
 # Scale image to targeted resolution while maintaining aspect ratio
-def scale(img):
+def scale(img, target_length):
 
     img_h = img.shape[0]
     img_w = img.shape[1]
     ratio = 1.0
     if img_h >= img_w:
-        ratio = float(TARGET_SCALE_LENGTH) / float(img_h)
+        ratio = float(target_length) / float(img_h)
     else:
-        ratio = float(TARGET_SCALE_LENGTH) / float(img_w)
+        ratio = float(target_length) / float(img_w)
 
     new_h = int(img_h * ratio)
     new_w = int(img_w * ratio)
@@ -381,8 +389,8 @@ def shade_img_bw(src):
     all_hatches = np.zeros(gray.shape, np.uint8)
     all_hatches[:] = 0
 
-    canvas = np.zeros(src.shape, np.uint8)
-    canvas[:,:] = (255, 255, 255)
+    hatch_canvas = np.zeros(gray.shape, np.uint8)
+    hatch_canvas[:] = 0
 
     lines = []
 
@@ -409,11 +417,8 @@ def shade_img_bw(src):
             # bitwise-AND the cross hatch and threshold brightness
             cropped_hatch = cv2.bitwise_and(thresh2, crosshatch)
 
-            # Detect lines from both sets of cropped hatches
-            detected_lines = detect_outline(cropped_hatch, return_only_endpoints=1)
-
-            # Add lines to main list
-            lines.extend(detected_lines)
+            # Add these cropped hatches to a temp canvas
+            hatch_canvas = cv2.bitwise_or(hatch_canvas, cropped_hatch)
 
             # Repeat for hatches in perpendicular direction
             #crosshatch_perp = gen_crosshatch(thresh2.shape, int(hatch_spacing), get_perpendicular_angle(45))
@@ -423,12 +428,16 @@ def shade_img_bw(src):
 
     # end for-loop
 
+    # Detect lines on aggregation of all hatches
+    detected_lines = detect_outline(hatch_canvas, return_only_endpoints=1)
+
+    # Add lines to main list
+    lines.extend(detected_lines)
+
     print 'Shading len(lines)', len(lines)
 
     debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
 
-    #cv2.imshow("all_hatches_" + str(brightness), all_hatches_bgr)
-    #cv2.imshow("all_hatches converted into hough lines", canvas)
     return lines, debug_img
 
 
@@ -459,6 +468,12 @@ def shade_img_color(src):
         rotation = COLOR_TO_ANGLE[color]
         rotation_perp = get_perpendicular_angle(rotation)
 
+        # Temp canvas to hold hatches for processing later
+        hatch_canvas = np.zeros(c_img.shape, np.uint8)
+        hatch_canvas[:] = 0
+        hatch_canvas_perp = np.zeros(c_img.shape, np.uint8)
+        hatch_canvas_perp[:] = 0
+
          # For each brightness level, replace it with crosshatches
         for i in range(BRIGHTNESS_LEVELS):
 
@@ -482,21 +497,26 @@ def shade_img_color(src):
                 # bitwise-AND the cross hatch and threshold brightness
                 cropped_hatch = cv2.bitwise_and(thresh2, crosshatch)
 
-                # Detect lines from both sets of cropped hatches
-                detected_lines = detect_outline(cropped_hatch, return_only_endpoints=1, color=color)
-
-                # Add to main list of lines
-                lines.extend(detected_lines)
+                # Add these cropped hatches to a temp canvas
+                hatch_canvas = cv2.bitwise_or(hatch_canvas, cropped_hatch)
 
                 # Repeat for hatches in perpendicular direction
                 # Don't do this for black lines because it looks shitty
                 if color != 'black':
                     crosshatch_perp = gen_crosshatch(thresh2.shape, int(hatch_spacing), rotation_perp)
                     cropped_hatch_perp = cv2.bitwise_and(thresh2, crosshatch_perp)
-                    detected_lines_perp = detect_outline(cropped_hatch_perp, return_only_endpoints=1, color=color)
-                    lines.extend(detected_lines_perp)
+                    hatch_canvas_perp = cv2.bitwise_or(hatch_canvas_perp, cropped_hatch_perp)
 
         # end for-loop
+
+        # Detect lines from both sets of cropped hatches
+        detected_lines = detect_outline(hatch_canvas, return_only_endpoints=1, color=color)
+        lines.extend(detected_lines)
+
+        if color != 'black':
+            detected_lines_perp = detect_outline(hatch_canvas_perp, return_only_endpoints=1, color=color)
+            lines.extend(detected_lines_perp)
+
 
     # end for-loop
 
