@@ -8,27 +8,29 @@ import os
 
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
+IMAGE_DISPLAY_SIZE = 640
 
 def open_image():
-    update_status_message("Image loading...")
+    update_status_message("Please choose an image file...")
 
     global file_name
     file_name = askopenfilename()
-    
+
     if not file_name:
         print "Open image canceled!"
         update_status_message("Image loading canceled!")
         return
-        
-    ip.load_image(file_name) # load in image to image processor
-    display_image(ImageTk.PhotoImage(Image.open(file_name)))
-    
-    update_status_message("Image loaded!")
 
-def preview_image():     
+    if ip.load_image(file_name): # load in image to image processor
+        display_image(Image.open(file_name))
+        update_status_message("Image loaded!")
+    else:
+        update_status_message("Image failed to load")
+
+def preview_image():
     #os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
     os.system("raspistill -t 5000")
-    
+
     # test
     """
     print sharpness.get()
@@ -37,65 +39,73 @@ def preview_image():
     print saturation.get()
     print iso.get()
     """
-    
+
 def take_picture():
     update_status_message("Image capturing...")
-    
-    pi_photo_name = "name.jpg"
-    #os.system("raspistill -o " + pi_photo_name + " -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
-    os.system("raspistill -o " + pi_photo_name)
-    
-    ip.load_image(pi_photo_name) # load in image to image processor
-    display_image(ImageTk.PhotoImage(Image.open(pi_photo_name)))
-    
-    update_status_messageupdate_status_message("Image captured!")
+
+    pi_photo_filename = "pi_photo.jpg"
+    #os.system("raspistill -o " + pi_photo_filename + " -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
+    os.system("raspistill -o " + pi_photo_filename)
+
+    if ip.load_image(pi_photo_filename): # load in image to image processor
+        display_image(Image.open(pi_photo_filename))
+        update_status_message("Image captured!")
+    else:
+        update_status_message("Failed to capture image!")
 
 def process_image():
     update_status_message("Image processing...")
-    
-    global file_name
-    if not file_name:
+
+    if not ip.is_image_loaded:
         print "No loaded image!"
         update_status_message("No image!")
         return
 
     # process image
     drawing_instructions = ip.process_image()
-    
+
     # load instructions to arm controller
     ac.load_instructions(drawing_instructions)
-        
+
     # convert the Image object into a TkPhoto object
-    im = Image.fromarray(ip.get_preview_image())    
-    processed_photo_img = ImageTk.PhotoImage(image=im) 
+    preview_processed_image = Image.fromarray(ip.get_preview_image())
 
     # preview
-    display_image(processed_photo_img)
-    
+    display_image(preview_processed_image)
+
     update_status_message("Image processed!")
-    
+
 def draw_image():
     update_status_message("Image drawing...")
-    
-    # TO DO: start drawing with robot arm - 
-    # ac.draw_loaded_instructions()
-    
-    update_status_message("Image drawn!")
-    
-# only pass in PhotoImage
-def display_image(photo_img):
-    
-    #photo_img = scale(photo_img)
 
-    img_w = photo_img.width()
-    img_h = photo_img.height()
-    root.geometry("" + str(img_w) + "x" + str(img_h) + "")
-    
+    # TO DO: start drawing with robot arm -
+    ac.draw_loaded_instructions()
+
+    update_status_message("Image drawn!")
+
+# only pass in PIL.Image objects
+def display_image(image):
+    # Resize to smaller fit on window
+    img_w, img_h = image.size
+    ratio = 1.0
+    if img_h >= img_w:
+        ratio = float(IMAGE_DISPLAY_SIZE) / float(img_h)
+    else:
+        ratio = float(IMAGE_DISPLAY_SIZE) / float(img_w)
+    img_h = int(img_h * ratio)
+    img_w = int(img_w * ratio)
+    scaled_image = image.resize((img_w, img_h), Image.BILINEAR)
+
+    # Convert to Tkinter.PhotoImage
+    photo_img = ImageTk.PhotoImage(scaled_image)
+
+    #root.geometry("" + str(img_w) + "x" + str(img_h+70) + "")
+
     canvas.delete("all")
     canvas.photo_img = photo_img
     canvas.pack()
-    canvas.create_image(0, 0, anchor = NW, image=photo_img)
-    
+    canvas.create_image(IMAGE_DISPLAY_SIZE/2, IMAGE_DISPLAY_SIZE/2, image=photo_img)
+
 def update_status_message(message):
     status.config(text=message)
 
@@ -103,15 +113,15 @@ def update_status_message(message):
 def scale(photo_img):
     img_w = photo_img.width()
     img_h = photo_img.height()
-    
+
     new_h = img_h
     new_w = img_w
-    
+
     if img_w > DISPLAY_WIDTH:
         ratio = DISPLAY_WIDTH/img_w
         new_h = int(img_h * ratio)
         new_w = int(img_w * ratio)
-    
+
     if new_h > DISPLAY_HEIGHT:
         ratio = DISPLAY_HEIGHT/new_h
         new_h = int(new_h * ratio)
@@ -120,9 +130,9 @@ def scale(photo_img):
     scale_w = new_w/img_w
     scale_h = new_h/img_h
     photo_img.zoom(int(scale_w), int(scale_h))
-    
+
     return photo_img
-    
+
 def settings_window():
     master = Tk()
     master.title("Settings")
@@ -171,7 +181,7 @@ def settings_window():
 def show_value_brightness():
     print ("Brightness set to: ")
     print (brightness.get())
-    
+
 def show_value_sharpness():
     print ("Sharpness set to: ")
     print (sharpness.get())
@@ -191,7 +201,7 @@ def show_value_iso():
 # Set up
 root = Tk()
 root.title("Image Processor")
-root.geometry("330x330")
+root.geometry("640x700")
 
 # initialization
 file_name = ""
@@ -240,14 +250,14 @@ root.mainloop()
 
 """
 def second_window():
- 
+
     subwindow = Toplevel(window)
     subwindow.title('random title')
     subwindow.configure(bg='purple')
- 
+
     def show_values():
         print w1.get(), w2.get(), w3.get()
- 
+
     btn_ent = Button(subwindow, text='Enter', command=timed_window)
     btn_ent.grid(row=3, column=3, padx=5, pady=5)
     label_chem = Label(subwindow, bg='purple', text='Please Choose Chemical Levels')
@@ -267,29 +277,29 @@ def second_window():
 
 def timed_window():
     global time
- 
+
     time = 50
- 
+
     def countdown():
         global time
- 
+
         if time > 0:
             time -= 1
             lab.config(text=str(time))
             subwindow.after(100, countdown) # 100 miliseconds
         else:
             subwindow.destroy()
- 
+
     subwindow = Toplevel(window)
     subwindow.title('countdown')
     subwindow.configure(bg='purple')
- 
+
     lab = Label(subwindow, bg='purple', text=str(time))
     lab.pack(padx=20, pady=20)
- 
+
     subwindow.after(100, countdown) # 100 miliseconds
 
-#-----------------------------------------------    
+#-----------------------------------------------
 # mainwindow
 
 window = Tk()
@@ -297,6 +307,6 @@ window.title('company name')
 window.configure(bg='purple')
 label = Label(window, text='company name with slogan')
 label.grid(row=0, column=1)
-btn_nxt = Button(window, bg='purple',  text='Enter', command=second_window)  
+btn_nxt = Button(window, bg='purple',  text='Enter', command=second_window)
 btn_nxt.grid(row=1, column=1, padx=100, pady=100)
 """

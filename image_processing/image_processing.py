@@ -55,10 +55,12 @@ class ImageProcessor:
         self.src = cv2.imread(filename)
         if self.src is None:
             print "File", filename, "does not exist!"
-            return
+            return False
 
         self.is_image_loaded = True
         self.is_image_processed = False
+
+        return True
 
 
     def process_image(self, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
