@@ -161,6 +161,8 @@ class ArmController:
         new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
         self.motor_commands.append(new_command)
 
+    def testing(self):
+        print ("testing!")
 
 
 # end ArmController

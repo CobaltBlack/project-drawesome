@@ -5,6 +5,7 @@ from Tkinter import *
 from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
+import threading
 
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
@@ -79,10 +80,20 @@ def draw_image():
     update_status_message("Image drawing...")
 
     # TO DO: start drawing with robot arm -
-    ac.draw_loaded_instructions()
+    
+    # testing
+    drawing = threading.Thread(target=draw_image_threaded, args=[])
+    drawing.start()
+    
+    #ac.draw_loaded_instructions()
 
     update_status_message("Image drawn!")
 
+    
+def draw_image_threaded():
+    ac.testing()
+
+    
 # only pass in PIL.Image objects
 def display_image(image):
     # Resize to smaller fit on window
@@ -247,6 +258,8 @@ separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 canvas = Canvas(root, width = 1920, height = 1080)
 root.config(menu=menubar)
 root.mainloop()
+
+
 
 """
 def second_window():
