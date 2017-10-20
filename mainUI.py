@@ -1,3 +1,9 @@
+'''
+arm_control.py
+
+"Insert some message Eric would approve here"
+'''
+
 from image_processing.image_processing import ImageProcessor
 from arm_control.arm_control import ArmController
 
@@ -6,6 +12,7 @@ from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
 import threading
+import time
 
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
@@ -55,12 +62,18 @@ def take_picture():
         update_status_message("Failed to capture image!")
 
 def process_image():
-    update_status_message("Image processing...")
-
+    # check conditions
     if not ip.is_image_loaded:
         print "No loaded image!"
         update_status_message("No image!")
         return
+
+    processing = threading.Thread(target=process_image_threaded, args=[])
+    processing.start()
+    
+def process_image_threaded():
+    set_cursor_wait()
+    update_status_message("Image processing...")
 
     # process image
     drawing_instructions = ip.process_image()
@@ -74,25 +87,46 @@ def process_image():
     # preview
     display_image(preview_processed_image)
 
+    set_cursor_normal()
     update_status_message("Image processed!")
 
 def draw_image():
-    update_status_message("Image drawing...")
+    # check conditions
+    if not ip.is_image_loaded:
+        print "No loaded image!"
+        update_status_message("No image!")
+        return
 
-    # TO DO: start drawing with robot arm -
-    
-    # testing
+    # update buttons
+    global toolbar
+    toolbar.destroy()
+    button_setup_drawing()
+
     drawing = threading.Thread(target=draw_image_threaded, args=[])
     drawing.start()
-    
-    #ac.draw_loaded_instructions()
 
+def draw_image_threaded():
+    set_cursor_wait()
+    update_status_message("Image drawing...")
+
+    
+    ac.testing()
+    #ac.draw_loaded_instructions()
+    
+
+    # update buttons
+    global toolbar
+    toolbar.destroy()
+    button_setup_normal()
+    
+    set_cursor_normal()
     update_status_message("Image drawn!")
 
+def draw_image_pause():
+    ac.draw_image_pause()
     
-def draw_image_threaded():
-    ac.testing()
-
+def draw_image_abort():
+    ac.draw_image_abort()
     
 # only pass in PIL.Image objects
 def display_image(image):
@@ -119,6 +153,13 @@ def display_image(image):
 
 def update_status_message(message):
     status.config(text=message)
+    
+def set_cursor_wait():
+    root.config(cursor="starting")  # arrow + circle
+    #root.config(cursor="wait")     # circle
+    
+def set_cursor_normal():
+    root.config(cursor="")
 
 # work in progress
 def scale(photo_img):
@@ -209,6 +250,36 @@ def show_value_iso():
     print ("ISO set to: ")
     print (iso.get())
 
+def button_setup_normal():
+    # Button bar
+    global toolbar
+    toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+    toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+    # Buttons
+    b = Button(toolbar, text="LOAD", width=9, command=open_image)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    b = Button(toolbar, text="CAPTURE", width=9, command=take_picture)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    b = Button(toolbar, text="PROCESS", width=9, command=process_image)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    b = Button(toolbar, text="DRAW", width=9, command=draw_image)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    # Pack
+    toolbar.pack(side=BOTTOM, fill=X)
+
+def button_setup_drawing():
+    # Button bar
+    global toolbar
+    toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+    toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+    # Buttons
+    b = Button(toolbar, text="PAUSE", width=9, command=draw_image_pause)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    b = Button(toolbar, text="ABORT", width=9, command=draw_image_abort)
+    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    # Pack
+    toolbar.pack(side=BOTTOM, fill=X)
+
 # Set up
 root = Tk()
 root.title("Image Processor")
@@ -223,10 +294,6 @@ ac = ArmController()
 menubar = Menu(root)
 filemenu = Menu(menubar, tearoff=0)
 filemenu.add_command(label="Preview", command=preview_image)
-#filemenu.add_command(label="Open Image", command=open_image)
-#filemenu.add_command(label="Take Picture", command=take_picture)
-#filemenu.add_command(label="Process", command=process_image)
-#filemenu.add_command(label="Draw", command=draw_image)
 filemenu.add_command(label="Image Settings", command=settings_window)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
@@ -237,20 +304,15 @@ status = Label(root, text="Loading dank memes...", bd = 1, relief = SUNKEN, anch
 status.pack(side = BOTTOM, fill = X)
 
 # Button bar
-toolbar = Frame(root) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
-toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+toolbar_parent = Frame(root) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+toolbar_parent.pack(anchor=CENTER, fill=X)
 # Buttons
-b = Button(toolbar, text="LOAD", width=9, command=open_image)
-b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-b = Button(toolbar, text="CAPTURE", width=9, command=take_picture)
-b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-b = Button(toolbar, text="PROCESS", width=9, command=process_image)
-b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-b = Button(toolbar, text="DRAW", width=9, command=draw_image)
-b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-toolbar.pack(side=BOTTOM, fill=X)
+toolbar = Frame(toolbar_parent)
+button_setup_normal()
+# Pack
+toolbar_parent.pack(side=BOTTOM, fill=X)
 
-# Button bar
+# Button bar seperator
 separator = Frame(height=2, bd=1, relief=SUNKEN)
 separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 
@@ -258,68 +320,3 @@ separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 canvas = Canvas(root, width = 1920, height = 1080)
 root.config(menu=menubar)
 root.mainloop()
-
-
-
-"""
-def second_window():
-
-    subwindow = Toplevel(window)
-    subwindow.title('random title')
-    subwindow.configure(bg='purple')
-
-    def show_values():
-        print w1.get(), w2.get(), w3.get()
-
-    btn_ent = Button(subwindow, text='Enter', command=timed_window)
-    btn_ent.grid(row=3, column=3, padx=5, pady=5)
-    label_chem = Label(subwindow, bg='purple', text='Please Choose Chemical Levels')
-    label_chem.grid(row=0, column=2, padx=5, pady=5)
-    label_nic = Label(subwindow, bg='purple', text='Nictonine (mg)')
-    label_nic.grid(row=1, column=1, padx=5, pady=5)
-    label_glyc = Label(subwindow, bg='purple', text='Glycol (mg)')
-    label_glyc.grid(row=1, column=2, padx=5, pady=5)
-    label_gli = Label(subwindow , bg='purple', text='Glycerine (mg)')
-    label_gli.grid(row=1, column=3, padx=5, pady=5)
-    w1 = Scale(subwindow, bg='purple', from_=30, to=0, orient=VERTICAL, resolution=0.5)
-    w1.grid(row=2, column=1, padx=5, pady=5)
-    w2 = Scale(subwindow, bg='purple', from_=30, to=0, orient=VERTICAL, resolution=0.5)
-    w2.grid(row=2, column=2, padx=5, pady=5)
-    w3 = Scale(subwindow, bg='purple', from_=30, to=0, orient=VERTICAL, resolution=0.5)
-    w3.grid(row=2, column=3, padx=5, pady=5)
-
-def timed_window():
-    global time
-
-    time = 50
-
-    def countdown():
-        global time
-
-        if time > 0:
-            time -= 1
-            lab.config(text=str(time))
-            subwindow.after(100, countdown) # 100 miliseconds
-        else:
-            subwindow.destroy()
-
-    subwindow = Toplevel(window)
-    subwindow.title('countdown')
-    subwindow.configure(bg='purple')
-
-    lab = Label(subwindow, bg='purple', text=str(time))
-    lab.pack(padx=20, pady=20)
-
-    subwindow.after(100, countdown) # 100 miliseconds
-
-#-----------------------------------------------
-# mainwindow
-
-window = Tk()
-window.title('company name')
-window.configure(bg='purple')
-label = Label(window, text='company name with slogan')
-label.grid(row=0, column=1)
-btn_nxt = Button(window, bg='purple',  text='Enter', command=second_window)
-btn_nxt.grid(row=1, column=1, padx=100, pady=100)
-"""
