@@ -5,8 +5,8 @@ This file is for converting the logical drawing instructions (from image process
 Then, it sends the physical instructions to motor_control.py to move the actual arm motors.
 '''
 
+import time
 from math import *
-
 from motor_control import MotorController, MotorCommand
 
 # Arm segment lengths
@@ -161,7 +161,39 @@ class ArmController:
         new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
         self.motor_commands.append(new_command)
 
+    def testing(self):
+        # TEST - artificial progress
+        time_current = 0
+        while (True):
+            if (time_current == 5):
+                print ("drawing complete")
+                return
+        
+            #pause
+            if (draw_pause):
+                print ("drawing paused")
+                time.sleep(1)
+            #unpause
+            else:
+                time_current += 1
+                print ("drawing (" + str(time_current) + "/5)")
+                time.sleep(1)
+    
+    def draw_image_pause(self):
+        global draw_pause
+        if (draw_pause == False):
+            draw_pause = True
+        else:
+            draw_pause = False
+            
+    def draw_image_abort(self):
+        print ("abort button not yet implemented!")
+        global draw_abort
+        draw_abort = True
 
+# TEST
+draw_pause = False
+draw_abort = False
 
 # end ArmController
 

@@ -62,11 +62,12 @@ class ImageProcessor:
 
     def load_image(self, filename):
         print "Loading", filename
-        self.src = cv2.imread(filename)
-        if self.src is None:
+        loaded_img = cv2.imread(filename)
+        if loaded_img is None:
             print "File", filename, "does not exist!"
             return False
 
+        self.src = loaded_img
         self.is_image_loaded = True
         self.is_image_processed = False
 
