@@ -38,12 +38,22 @@ COLOR_TO_ANGLE = {
 
 # One line drawing instruction
 class Line:
+
     def __init__(self, color, points):
         self.color = color
         self.points = points
+        self.is_reversed = False
+
+
+    def get_points(self):
+        if self.is_reversed:
+            return reversed(self.points)
+
+        return self.points
 
 
 class ImageProcessor:
+
     def __init__(self):
         print ("Initializing ImageProcessor...")
         self.is_image_loaded = False
@@ -72,13 +82,13 @@ class ImageProcessor:
         self.scaled = scale(self.src, TARGET_SCALE_LENGTH)
 
         # Crop or fit image into aspect ratio
-        if (crop_mode == "fit"):
-            self.cropped = fit_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
-        elif (crop_mode == "crop"):
-            self.cropped = crop_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
+        # if (crop_mode == "fit"):
+            # self.cropped = fit_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
+        # elif (crop_mode == "crop"):
+            # self.cropped = crop_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
 
         # Detect edges
-        self.blurred = blur(self.cropped)
+        self.blurred = blur(self.scaled)
         self.edges = detect_edges(self.blurred)
 
         # Use edges to detect lines
@@ -88,17 +98,24 @@ class ImageProcessor:
             wait()
             return
 
+        lines = sort_lines_by_distance(lines)
+        total_dist, avg_dist = calc_interline_distance(lines)
+        print "Outline only: Total Dist =", total_dist, "Avg Dist =", avg_dist
+
         # ### DEBUG IMAGE for detected lines:
-        lines_detected_img = debug_detect_outline(lines, self.cropped.shape)
+        lines_detected_img = debug_detect_outline(lines, self.scaled.shape)
 
         # Fill the image by shading
         shading_lines = []
         if is_bw:
-            shading_lines, shaded_img = shade_img_bw(self.cropped)
+            shading_lines, shaded_img = shade_img_bw(self.scaled)
         else:
-            shading_lines, shaded_img = shade_img_color(self.cropped)
+            shading_lines, shaded_img = shade_img_color(self.scaled)
 
         lines.extend(shading_lines)
+
+        total_dist, avg_dist = calc_interline_distance(lines)
+        print "Outline + Shading: Total Dist =", total_dist, "Avg Dist =", avg_dist
 
         self.preview_line_image = cv2.bitwise_and(shaded_img, lines_detected_img)
 
@@ -126,7 +143,7 @@ class ImageProcessor:
 
 # end class ImageProcessor
 
-
+'''
 # Main image processing function
 # Returns array of line drawing instructions
 def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
@@ -185,7 +202,7 @@ def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_ins
         wait()
 
     return lines, final
-
+'''
 
 # Scale image to targeted resolution while maintaining aspect ratio
 def scale(img, target_length):
@@ -433,8 +450,11 @@ def shade_img_bw(src):
     # Detect lines on aggregation of all hatches
     detected_lines = detect_outline(hatch_canvas, return_only_endpoints=1)
 
+    # Sort to minimize pen-up distance
+    sorted_lines = sort_lines_by_distance(detected_lines)
+
     # Add lines to main list
-    lines.extend(detected_lines)
+    lines.extend(sorted_lines)
 
     print 'Shading len(lines)', len(lines)
 
@@ -513,11 +533,16 @@ def shade_img_color(src):
 
         # Detect lines from both sets of cropped hatches
         detected_lines = detect_outline(hatch_canvas, return_only_endpoints=1, color=color)
-        lines.extend(detected_lines)
 
+        # Cross hatch with perpendicular lines for CMY
+        # (not black lines cuz it looks bad)
         if color != 'black':
             detected_lines_perp = detect_outline(hatch_canvas_perp, return_only_endpoints=1, color=color)
-            lines.extend(detected_lines_perp)
+            detected_lines.extend(detected_lines_perp)
+
+        # Sort to minimize pen-up distance
+        sorted_lines = sort_lines_by_distance(detected_lines)
+        lines.extend(sorted_lines)
 
 
     # end for-loop
@@ -699,6 +724,74 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
     return canvas
 
 
+# Returns a list of lines with same size, but ordered such that the distance between the end and start of the next line is minimized (minimizes the distance that the arm has to travel with the pen up)
+def sort_lines_by_distance(lines):
+    num_lines = len(lines)
+    if num_lines == 0:
+        return []
+
+    sorted_lines = []
+    sorted_lines.append(lines[0])
+
+    while(len(lines) > 1):
+        # Get endpoint of line
+        curr_line = sorted_lines[-1]
+        curr_endpoint = curr_line.points[-1]
+
+        # Find line whose start or end point is closest to current endpoint
+        closest_line = lines[0]
+        closest_line_index = 0
+        curr_min_dist = float("inf")
+        is_reversed = False
+        for i in range(len(lines)):
+            next_line = lines[i]
+            next_start = next_line.points[0]
+            next_end = next_line.points[-1]
+
+            dist_to_start = dist_points(curr_endpoint, next_start)
+            if (dist_to_start < curr_min_dist):
+                curr_min_dist = dist_to_start
+                closest_line = next_line
+                closest_line_index = i
+                is_reversed = False
+
+            dist_to_end = dist_points(curr_endpoint, next_end)
+            if (dist_to_end < curr_min_dist):
+                curr_min_dist = dist_to_end
+                closest_line = next_line
+                closest_line_index = i
+                is_reversed = True
+
+        # If endpoint is closest, draw the line in reverse
+        if is_reversed:
+            closest_line.points = list(reversed(closest_line.points))
+
+        # Add line as next instruction to draw
+        sorted_lines.append(closest_line)
+
+        # Remove line from original list so it does not get found again
+        lines.pop(closest_line_index)
+
+    assert (num_lines == len(sorted_lines))
+    return sorted_lines
+
+
+# Calculates distances between the end and start of next line
+def calc_interline_distance(lines):
+    total_dist = 0
+    num_lines = len(lines)
+
+    curr_endpoint = lines[0].points[-1]
+
+    for line in lines:
+        next_start_point = line.points[0]
+        dist_to_next_line = dist_points(curr_endpoint, next_start_point)
+        total_dist = total_dist + dist_to_next_line
+        curr_endpoint = line.points[-1]
+
+    return total_dist, total_dist / num_lines
+
+
 # DEBUG IMAGE for detected lines:
 def debug_detect_outline(lines, shape, endpoints_only=0):
 
@@ -792,3 +885,10 @@ def get_test_instructions():
     lines.append(test_line)
 
     return lines
+
+
+def dist_points(p1, p2):
+    dx = abs(p2[0] - p1[0])
+    dy = abs(p2[1] - p1[1])
+    return math.sqrt(dy**2 + dx**2)
+
