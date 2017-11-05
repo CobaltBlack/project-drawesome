@@ -10,8 +10,9 @@ import math
 import numpy as np
 import random
 
-TARGET_SCALE_LENGTH = 1000 # Length of the longer side
-TARGET_ASPECT_RATIO = 16.0 / 9.0
+TARGET_SCALE_WIDTH = 1024
+TARGET_SCALE_HEIGHT = 786
+TARGET_ASPECT_RATIO = 4.0 / 3.0
 LETTER_RATIO = 8.5 / 11.0
 
 B_INDEX = 0
@@ -42,14 +43,7 @@ class Line:
     def __init__(self, color, points):
         self.color = color
         self.points = points
-        self.is_reversed = False
 
-
-    def get_points(self):
-        if self.is_reversed:
-            return reversed(self.points)
-
-        return self.points
 
 
 class ImageProcessor:
@@ -79,8 +73,11 @@ class ImageProcessor:
             print "Error: No image is not loaded!"
             return
 
+        # Makes sures image is landscape by rotating clockwise
+        self.scaled = rotate_landscape(self.src)
+
         # Scale and crop image to appropriate proportions and size
-        self.scaled = scale(self.src, TARGET_SCALE_LENGTH)
+        self.scaled = scale(self.scaled, TARGET_SCALE_WIDTH, TARGET_SCALE_HEIGHT)
 
         # Crop or fit image into aspect ratio
         # if (crop_mode == "fit"):
@@ -128,7 +125,7 @@ class ImageProcessor:
             cv2.imshow('OUtline + shading', self.preview_line_image)
             wait()
 
-        return lines
+        return lines, self.scaled.shape
 
 
 
@@ -205,25 +202,38 @@ def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_ins
     return lines, final
 '''
 
-# Scale image to targeted resolution while maintaining aspect ratio
-def scale(img, target_length):
+# Scale image to fit in targeted resolution while maintaining aspect ratio
+def scale(img, target_width, target_height):
 
-    img_h = img.shape[0]
-    img_w = img.shape[1]
-    ratio = 1.0
-    if img_h >= img_w:
-        ratio = float(target_length) / float(img_h)
-    else:
-        ratio = float(target_length) / float(img_w)
+    img_h, img_w, _ = img.shape
+    img_ratio = float(img_w) / float(img_h)
+    if img_ratio < TARGET_ASPECT_RATIO: # img is taller than target ratio
+        # Scale using the Height
+        scale_ratio = float(TARGET_SCALE_HEIGHT) / float(img_h)
 
-    new_h = int(img_h * ratio)
-    new_w = int(img_w * ratio)
+    else:   # Image is wider than target ratio
+        # Scale using the Width
+        scale_ratio = float(TARGET_SCALE_WIDTH) / float(img_w)
+
+    new_h = int(img_h * scale_ratio)
+    new_w = int(img_w * scale_ratio)
     scaled = cv2.resize(img, (new_w, new_h))
 
     print "Source dimension is", img.shape
     print "Scaled dimension is ", scaled.shape
 
     return scaled
+
+
+# Rotates the image to landscape if it is not already
+def rotate_landscape(img):
+
+    img_h, img_w, _ = img.shape
+    if (img_h > img_w):
+        rotated = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        return rotated
+
+    return img
 
 
 # Blurs the image for edge detection
@@ -853,39 +863,47 @@ def get_test_instructions():
 
     # Vertical line
     points = []
-    points.append([0,  0])
-    points.append([0, 200])
-    points.append([0, 400])
-    points.append([0, 600])
-    points.append([0, 800])
-    points.append([0, 1000])
-    points.append([0, 1200])
-    points.append([0, 1400])
-    points.append([0, 1600])
+    points.append([110,  0])
+    points.append([110, 200])
+    points.append([110, 400])
+    points.append([110, 600])
+    points.append([110, 800])
     test_line = Line(color, points)
     lines.append(test_line)
 
     # Horizontal line
     points = []
-    points.append([  0, 150])
-    points.append([300, 150])
+    points.append([110, 150])
+    points.append([400, 150])
     test_line = Line(color, points)
     lines.append(test_line)
 
     # Diagonal lines
     points = []
-    points.append([  0,   0])
-    points.append([300, 300])
+    points.append([100, 100])
+    points.append([500, 500])
     test_line = Line(color, points)
     lines.append(test_line)
 
     points = []
-    points.append([300,   0])
-    points.append([  0, 300])
+    points.append([500, 100])
+    points.append([100, 500])
     test_line = Line(color, points)
     lines.append(test_line)
 
-    return lines
+    points = []
+    points.append([0, 0])
+    points.append([1023, 785])
+    test_line = Line(color, points)
+    lines.append(test_line)
+
+    points = []
+    points.append([0, 785])
+    points.append([1023, 0])
+    test_line = Line(color, points)
+    lines.append(test_line)
+
+    return lines, (786, 1024, 3)
 
 
 def dist_points(p1, p2):

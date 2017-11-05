@@ -1,4 +1,4 @@
-from image_processing.image_processing import ImageProcessor
+from image_processing.image_processing import ImageProcessor, get_test_instructions
 from arm_control.arm_control import ArmController
 import os
 
@@ -18,18 +18,17 @@ def main():
 
     print 'Processing test image', img_file
 
-    #drawing_instructions, processed_image = process_img(TEST_PICS_DIRECTORY + img_file, is_bw=0, enable_debug=1, use_test_instructions=1)
-
     ip = ImageProcessor()
     ip.load_image(TEST_PICS_DIRECTORY + img_file)
-    drawing_instructions = ip.process_image(is_bw=1, enable_debug=1)
+    drawing_instructions, img_shape = ip.process_image(is_bw=1, enable_debug=1)
+    #drawing_instructions, img_shape = get_test_instructions()
 
-    ip.get_preview_image()
+    #ip.get_preview_image()
 
     print "number of drawing_instructions =", len(drawing_instructions)
 
     ac = ArmController()
-    ac.load_instructions(drawing_instructions)
+    ac.load_instructions(drawing_instructions, img_shape)
     ac.draw_loaded_instructions()
 
 

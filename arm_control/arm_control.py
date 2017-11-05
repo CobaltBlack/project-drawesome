@@ -9,29 +9,39 @@ import time
 from math import *
 from motor_control import MotorController, MotorCommand
 
-# Arm segment lengths
-L1 = 170.0 # units in mm`
-L2 = 150.0
+# Arm segment lengths (units in mm)
+L1 = 160.0 # TODO: Update limb lengths
+L2 = 160.0
 L3 = 50.0
 ARM_MAX_LENGTH = L1 + L2
+MIN_RADIUS = 100.0  # Closest to the base that the arm can reach
+
+PEN_R_OFFSET = 10.0     # Horizontal offset from wrist of the arm to pen location
+PEN_Z_OFFSET = 50.0     # Vertical offset from wrist of arm to tip of pen
 
 GROUND_TO_CANVAS_DISTANCE = 0   # How far above the ground the canvas is
 Y_REACH_MAX = 0 # init in calculate_arm_reach()
 Y_REACH_MIN = 0 # init in calculate_arm_reach()
 
-BASE_TO_CANVAS_DISTANCE = 100.0 # TBD. Z Distance from arm base to canvas
+GROUND_TO_BASE_HEIGHT = 122.0 # Height from first arm joint to ground
 
 PEN_LIFT_DISTANCE   = 10.0                              # Distance to lift pen off the canvas (mm)
-PEN_DOWN_Z          = BASE_TO_CANVAS_DISTANCE - L3      # z of joint that connects L3
-PEN_UP_Z            = PEN_DOWN_Z - PEN_LIFT_DISTANCE    # unit in mm
+PEN_DOWN_Z          = - GROUND_TO_BASE_HEIGHT      # Pen is on the canvas
+PEN_UP_Z            = PEN_DOWN_Z + PEN_LIFT_DISTANCE    # unit in mm
 
-CANVAS_X_MM = 215.9 # units in mm
-CANVAS_Y_MM = 279.4 # units in mm
+# CANVAS_X_MM = 279.4 # units in mm
+# CANVAS_Y_MM = 215.9 # units in mm
 
-CANVAS_X_PX = 1080
-CANVAS_Y_PX = 1920
+CANVAS_X_MM = 250.0 # units in mm
+CANVAS_Y_MM = 187.5 # units in mm
+
+CANVAS_X_PX = 1024
+CANVAS_Y_PX = 786
 
 PX_TO_MM_RATIO = CANVAS_Y_PX / CANVAS_Y_MM
+
+CANVAS_TO_POLAR_OFFSET_X = -CANVAS_X_MM / 2
+CANVAS_TO_POLAR_OFFSET_Y = CANVAS_Y_MM + MIN_RADIUS # Remember to invert Y; opencv increases Y downwards
 
 ARM_SPEED_MM_PER_S = 50.0
 PEN_UP_DOWN_DURATION = 0.1
@@ -48,9 +58,13 @@ class ArmController:
         self.motor_commands = []
 
 
-    # Loads instructions from image processing
-    def load_instructions(self, instructions):
+    # Loads instructions and image metadata from image processing
+    def load_instructions(self, instructions, img_shape):
         self.instructions = instructions
+        self.img_shape = img_shape
+        self.img_center_offset_x = (CANVAS_X_PX - img_shape[1]) / 2
+        self.img_center_offset_y = (CANVAS_Y_PX - img_shape[0]) / 2
+
         print ("Loaded {0} drawing instruction(s)".format(len(instructions)))
 
 
@@ -93,39 +107,47 @@ class ArmController:
         self.pen_up()
 
 
+    # Adds command to move to canvas-coordinate, while keeping same Z
     def move_to(self, coordinate):
         # print "move_to coordinate", coordinate
 
         target_x = coordinate[0]
         target_y = coordinate[1]
 
-        # Skip if already on same pixel
-        if target_x == self.curr_x and target_y == self.curr_y:
-            return
-
-        # The arm controls y and z (vertically, and depth of arm)
-        # Rail controls x (horizontally)
-
         # Convert units to mm
         target_x_mm = px_to_mm(target_x)
-        # Invert y value, because origin is at floor level. In OpenCV, origin is top left corner.
-        target_y_mm = px_to_mm(CANVAS_Y_PX - target_y) + GROUND_TO_CANVAS_DISTANCE
+        target_y_mm = px_to_mm(target_y)
+
+        # Transform canvas coordinates into polar
+        # Also tries to center the image if it doesnt fully fit resolution
+        # Invert Y because openCV has y backwards
+        x_polar = CANVAS_TO_POLAR_OFFSET_X + (target_x_mm + self.img_center_offset_x)
+        y_polar = CANVAS_TO_POLAR_OFFSET_Y - (target_y_mm + self.img_center_offset_y)
+
+        # Skip if already on same pixel
+        if x_polar == self.curr_x and y_polar == self.curr_y:
+            return
+
+        print("target", target_x, target_y)
+        print("target polar", x_polar, y_polar)
 
         # Get angle of final positions of each arm motor
         # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
-        theta1, theta2, theta3 = points_to_angles(self.curr_z, target_y_mm)
+        base_angle, joint_angle1, joint_angle2 = point_to_angles(x_polar, y_polar, self.curr_z)
+
+        # TODO: Slice movement into smaller segments for straight lines
 
         # Calculate how fast to move the motors (in seconds)
-        distance_to_target = distance(self.curr_x, self.curr_y, target_x, target_y)
-        distance_to_target_mm = px_to_mm(distance_to_target)
-        move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
+        # distance_to_target = distance(self.curr_x, self.curr_y, target_x, target_y)
+        # distance_to_target_mm = px_to_mm(distance_to_target)
+        # move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
 
-        # Add to motor command list
-        new_command = MotorCommand(theta1, theta2, theta3, target_x_mm, 0, move_duration)
-        self.motor_commands.append(new_command)
+        # TODO: Add to motor command list
+        # new_command = MotorCommand(theta1, theta2, theta3, target_x_mm, 0, move_duration)
+        # self.motor_commands.append(new_command)
 
-        self.curr_x = target_x
-        self.curr_y = target_y
+        self.curr_x = x_polar
+        self.curr_y = y_polar
 
 
     def pen_up(self):
@@ -135,14 +157,13 @@ class ArmController:
             return
 
         # Get angle of final positions of each arm motor
-        # Use current y and hardcoded Z value
-        curr_y_mm = px_to_mm(CANVAS_Y_PX - self.curr_y) + GROUND_TO_CANVAS_DISTANCE
-        theta1, theta2, theta3 = points_to_angles(PEN_UP_Z, curr_y_mm)
+        # Keep same x and y
+        base_angle, joint_angle1, joint_angle2 = point_to_angles(self.curr_x, self.curr_y, PEN_UP_Z)
         self.curr_z = PEN_UP_Z
 
         # Add to motor command list
-        new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
-        self.motor_commands.append(new_command)
+        # new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
+        # self.motor_commands.append(new_command)
 
 
     def pen_down(self):
@@ -152,14 +173,14 @@ class ArmController:
             return
 
         # Get angle of final positions of each arm motor
-        # Use current y and hardcoded Z value
-        curr_y_mm = px_to_mm(CANVAS_Y_PX - self.curr_y) + GROUND_TO_CANVAS_DISTANCE
-        theta1, theta2, theta3 = points_to_angles(PEN_DOWN_Z, curr_y_mm)
+        # Keep same x and y
+        base_angle, joint_angle1, joint_angle2 = point_to_angles(self.curr_x, self.curr_y, PEN_DOWN_Z)
         self.curr_z = PEN_DOWN_Z
 
         # Add to motor command list
-        new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
-        self.motor_commands.append(new_command)
+        # new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
+        # self.motor_commands.append(new_command)
+
 
     def testing(self):
         # TEST - artificial progress
@@ -168,7 +189,7 @@ class ArmController:
             if (time_current == 5):
                 print ("drawing complete")
                 return
-        
+
             #pause
             if (draw_pause):
                 print ("drawing paused")
@@ -178,14 +199,14 @@ class ArmController:
                 time_current += 1
                 print ("drawing (" + str(time_current) + "/5)")
                 time.sleep(1)
-    
+
     def draw_image_pause(self):
         global draw_pause
         if (draw_pause == False):
             draw_pause = True
         else:
             draw_pause = False
-            
+
     def draw_image_abort(self):
         print ("abort button not yet implemented!")
         global draw_abort
@@ -258,7 +279,7 @@ def points_to_angles_old(points):
         rad_Theta1[i] = atan2(y[i], z[i]) - atan2(k2[i], k1[i]);
         Theta1_Deg[i] = degrees(rad_Theta1[i]);
 
-        # TODO: Calculate theta3 (angle of 3rd servo)
+        # Calculate theta3 (angle of 3rd servo)
         Theta3_Deg[i] = 360 - Theta1_Deg[i] - Theta2_Deg[i]
 
 
@@ -268,7 +289,38 @@ def points_to_angles_old(points):
     return Theta1_Deg, Theta2_Deg, Theta3_Deg
 
 
-def points_to_angles(x, y):
+# 3d point to angles for spinny arm (not on rail)
+# Origin is defined as the first arm joint at the base
+# x,y,z input is the desired coordinate of the tip of the pen
+def point_to_angles(x, y, z):
+    print("point_to_angles({0}, {1}, {2})".format(x, y, z))
+
+    base_angle = atan2(y, x)
+
+    # Radius to arm wrist
+    radius = distance(0, 0, x, y) - PEN_R_OFFSET
+
+    # z of arm wrist (wrist is above pen tip)
+    z_wrist = z + PEN_Z_OFFSET
+
+    dist_to_origin = distance(0, 0, radius, z_wrist)
+    joint_angle1_a = atan2(z_wrist, radius) # angle between horizon and line to wrist
+
+    # L2 is the opposite side for law of cosines.
+    joint_angle1_b = law_of_cosines(dist_to_origin, L1, L2)
+    joint_angle1 = joint_angle1_a + joint_angle1_b
+
+    # dist_to_origin is the opposite side for law of cosines
+    joint_angle2 = law_of_cosines(L1, L2, dist_to_origin)
+
+    print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
+
+    return base_angle, joint_angle1, joint_angle2
+
+
+
+# 2-d version
+def points_to_angles_old2(x, y):
     distance_to_origin = distance(0, 0, x, y)
 
     # Angle between x-axis and line from origin to (x,y)
