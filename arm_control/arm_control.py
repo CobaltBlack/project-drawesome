@@ -74,17 +74,17 @@ class ArmController:
         # Convert drawing instructions into motor commands
         self.motor_commands = []
         for line in self.instructions:
-            commands = self.create_commands_for_line(line)
-
-        # Load commands into MotorController
-        #mc = MotorController()
+            self.create_commands_for_line(line)
 
         # debug
-        #for cmd in self.motor_commands:
-        #    print cmd.to_string()
+        for cmd in self.motor_commands:
+            print cmd.to_string()
+
+        # Load commands into MotorController
+        mc = MotorController()
 
         # Start draw on seperate thread, so everything else can keep running
-
+        mc.run_motor_commands(self.motor)
 
         # Update status messages etc
 
@@ -128,12 +128,12 @@ class ArmController:
         if x_polar == self.curr_x and y_polar == self.curr_y:
             return
 
-        print("target", target_x, target_y)
-        print("target polar", x_polar, y_polar)
+        # print("target", target_x, target_y)
+        # print("target polar", x_polar, y_polar)
 
         # Get angle of final positions of each arm motor
         # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
-        base_angle, joint_angle1, joint_angle2 = point_to_angles(x_polar, y_polar, self.curr_z)
+        base_angle, j1_angle, j2_angle = point_to_angles(x_polar, y_polar, self.curr_z)
 
         # TODO: Slice movement into smaller segments for straight lines
 
@@ -142,9 +142,9 @@ class ArmController:
         # distance_to_target_mm = px_to_mm(distance_to_target)
         # move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
 
-        # TODO: Add to motor command list
-        # new_command = MotorCommand(theta1, theta2, theta3, target_x_mm, 0, move_duration)
-        # self.motor_commands.append(new_command)
+        # Add to motor command list
+        new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, 2)
+        self.motor_commands.append(new_command)
 
         self.curr_x = x_polar
         self.curr_y = y_polar
@@ -315,7 +315,7 @@ def point_to_angles(x, y, z):
 
     print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
 
-    return base_angle, joint_angle1, joint_angle2
+    return degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)
 
 
 
