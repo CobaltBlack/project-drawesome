@@ -84,7 +84,7 @@ class ArmController:
         mc = MotorController()
 
         # Start draw on seperate thread, so everything else can keep running
-        mc.run_motor_commands(self.motor)
+        mc.run_motor_commands(self.motor_commands)
 
         # Update status messages etc
 

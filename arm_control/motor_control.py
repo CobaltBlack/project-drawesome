@@ -12,9 +12,9 @@ import threading
 
 # Since there is no way to check the current angle of the arm,
 # we must physically position the arm before starting the program
-DEFAULT_PHETA1 = 90
-DEFAULT_PHETA2 = 90
-DEFAULT_PHETA3 = 90
+DEFAULT_BASE_ANGLE = 90
+DEFAULT_J1_ANGLE = 90
+DEFAULT_J2_ANGLE = 90
 
 GEAR_RATIO = 9.0 / 32.0
 ANGLE_PER_STEP = (360.0 / 200.0) * GEAR_RATIO
@@ -87,6 +87,7 @@ class MotorController():
 
 
     def run_motor_commands(self, motor_commands):
+        print('Number of motor commands!!:', len(motor_commands))
         for command in motor_commands:
             # Run commands only if motors are done
             while (self.are_motors_running()):
@@ -104,9 +105,10 @@ class MotorController():
             # Determine directions to step
             # XOR (^) operator to reverse direction on some motors based on setup
             base_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_base > 0) ^ ST_BASE_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
-            j1_dir = Adafruit_MotorHAT.FORWARD if ((d_j1_base > 0) ^ ST_J1_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
-            j2_dir = Adafruit_MotorHAT.FORWARD if ((d_j2_base > 0) ^ ST_J2_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
+            j1_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j1 > 0) ^ ST_J1_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
+            j2_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j2 > 0) ^ ST_J2_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
 
+            print('Starting threads')
             # Set up threads for each motor to run simultaneously
             self.st_base_thread = threading.Thread(target=stepper_worker, args=(self.st_base, abs(d_steps_base), base_dir, STEP_STYLE))
             self.st_j1_thread = threading.Thread(target=stepper_worker, args=(self.st_j1, abs(d_steps_j1), j1_dir, STEP_STYLE))
