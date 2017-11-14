@@ -155,7 +155,10 @@ def update_status_message(message):
     status.config(text=message)
     
 def set_cursor_wait():
-    root.config(cursor="starting")  # arrow + circle
+    # disabled for pi @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+    #root.config(cursor="starting")  # arrow + circle
+    
+    
     #root.config(cursor="wait")     # circle
     
 def set_cursor_normal():
