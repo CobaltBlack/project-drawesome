@@ -46,11 +46,13 @@ CANVAS_TO_POLAR_OFFSET_Y = CANVAS_Y_MM + MIN_RADIUS # Remember to invert Y; open
 ARM_SPEED_MM_PER_S = 50.0
 PEN_UP_DOWN_DURATION = 0.1
 
+MM_PER_MOVESLICE = 2
+
 
 class ArmController:
 
     def __init__(self):
-        print ("Initializing ArmController...")
+        print "Initializing ArmController..."
         self.curr_x = 0
         self.curr_y = 0
         self.curr_z = PEN_UP_Z
@@ -77,8 +79,10 @@ class ArmController:
             self.create_commands_for_line(line)
 
         # debug
-        for cmd in self.motor_commands:
-            print cmd.to_string()
+        # for cmd in self.motor_commands:
+            # print cmd.to_string()
+            
+        print 'number of motor commands', len(self.motor_commands)
 
         # Load commands into MotorController
         mc = MotorController()
@@ -133,21 +137,12 @@ class ArmController:
 
         # Get angle of final positions of each arm motor
         # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
-        base_angle, j1_angle, j2_angle = point_to_angles(x_polar, y_polar, self.curr_z)
+        # base_angle, j1_angle, j2_angle = point_to_angles(x_polar, y_polar, self.curr_z)
 
         # TODO: Slice movement into smaller segments for straight lines
+        self.add_motor_commands_in_slices(x_polar, y_polar, self.curr_z)
+        
 
-        # Calculate how fast to move the motors (in seconds)
-        # distance_to_target = distance(self.curr_x, self.curr_y, target_x, target_y)
-        # distance_to_target_mm = px_to_mm(distance_to_target)
-        # move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
-
-        # Add to motor command list
-        new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, 2)
-        self.motor_commands.append(new_command)
-
-        self.curr_x = x_polar
-        self.curr_y = y_polar
 
 
     def pen_up(self):
@@ -181,7 +176,49 @@ class ArmController:
         # new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
         # self.motor_commands.append(new_command)
 
+        
+    # adds motor commands to move to target xyz
+    # Updates current xyz
+    def add_motor_commands_in_slices(self, target_x, target_y, target_z):
+        # starting coords
+        starting_x = self.curr_x
+        starting_y = self.curr_y
+        starting_z = self.curr_z
+        
+        # How far to move in each direction
+        dx = target_x - starting_x
+        dy = target_y - starting_y
+        dz = target_z - starting_z
+        move_distance = sqrt(dz**2 + dy**2 + dx**2)
+        
+        # Split each movement into equal sized "slices"
+        slices = int(round(move_distance / MM_PER_MOVESLICE))
+        if slices < 1:
+            slices = 1
+                    
+        dx_per_slice = dx / slices
+        dy_per_slice = dy / slices
+        dz_per_slice = dz / slices
+                
+        for i in range(1, slices + 1):
+            next_x = starting_x + (i * dx_per_slice)
+            next_y = starting_y + (i * dy_per_slice)
+            next_z = starting_z + (i * dz_per_slice)
+            
+            base_angle, j1_angle, j2_angle = point_to_angles(next_x, next_y, next_z)
+            # TODO: error check to makes 
+            
+            # TODO: Calculate how fast to move the motors (in seconds)
+            # move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
 
+            new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, 2)
+            self.motor_commands.append(new_command)
+        
+        self.curr_x = target_x
+        self.curr_y = target_y
+        self.curr_z = target_z
+
+        
     def testing(self):
         # TEST - artificial progress
         time_current = 0
@@ -228,8 +265,6 @@ def select_pen_color(color):
 
 
 def points_to_angles_old(points):
-
-    print "points_to_angles start:", points
 
     # Defining the end effector
     # z represents "depth" of the tip of the arm
@@ -293,7 +328,7 @@ def points_to_angles_old(points):
 # Origin is defined as the first arm joint at the base
 # x,y,z input is the desired coordinate of the tip of the pen
 def point_to_angles(x, y, z):
-    print("point_to_angles({0}, {1}, {2})".format(x, y, z))
+    #print("point_to_angles({0}, {1}, {2})".format(x, y, z))
 
     base_angle = atan2(y, x)
 
@@ -313,7 +348,7 @@ def point_to_angles(x, y, z):
     # dist_to_origin is the opposite side for law of cosines
     joint_angle2 = law_of_cosines(L1, L2, dist_to_origin)
 
-    print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
+    # print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
 
     return degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)
 
@@ -348,6 +383,13 @@ def distance(x1, y1, x2, y2):
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
     return sqrt(dy**2 + dx**2)
+    
+    
+def distance3d(x1, y1, z1, x2, y2, z2):
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    dz = abs(z2 - z1)
+    return sqrt(dz**2 + dy**2 + dx**2)
 
 
 def law_of_cosines(a, b, c):
