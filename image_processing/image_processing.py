@@ -52,6 +52,7 @@ class ImageProcessor:
         print ("Initializing ImageProcessor...")
         self.is_image_loaded = False
         self.is_image_processed = False
+        self.is_image_rotated = False
 
 
     def load_image(self, filename):
@@ -74,7 +75,7 @@ class ImageProcessor:
             return
 
         # Makes sures image is landscape by rotating clockwise
-        self.scaled = rotate_landscape(self.src)
+        self.scaled = self.rotate_landscape(self.src)
 
         # Scale and crop image to appropriate proportions and size
         self.scaled = scale(self.scaled, TARGET_SCALE_WIDTH, TARGET_SCALE_HEIGHT)
@@ -128,15 +129,29 @@ class ImageProcessor:
         return lines, self.scaled.shape
 
 
-
     def get_preview_image(self):
         if self.is_image_processed:
+            if self.is_image_rotated:
+                return cv2.rotate(self.preview_line_image, cv2.ROTATE_90_CLOCKWISE)
+        
             return self.preview_line_image
+
         return []
 
 
     def get_source_image(self):
         return self.src
+        
+    # Rotates the image to landscape if it is not already
+    def rotate_landscape(self, img):  
+        self.is_image_rotated = False      
+        img_h, img_w, _ = img.shape
+        if (img_h > img_w):
+            rotated = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            self.is_image_rotated = True
+            return rotated
+
+        return img
 
 
 # end class ImageProcessor
@@ -223,17 +238,6 @@ def scale(img, target_width, target_height):
     print "Scaled dimension is ", scaled.shape
 
     return scaled
-
-
-# Rotates the image to landscape if it is not already
-def rotate_landscape(img):
-
-    img_h, img_w, _ = img.shape
-    if (img_h > img_w):
-        rotated = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        return rotated
-
-    return img
 
 
 # Blurs the image for edge detection

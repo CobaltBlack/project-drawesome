@@ -76,10 +76,10 @@ def process_image_threaded():
     update_status_message("Image processing...")
 
     # process image
-    drawing_instructions = ip.process_image()
+    drawing_instructions, img_shape = ip.process_image()
 
     # load instructions to arm controller
-    ac.load_instructions(drawing_instructions)
+    ac.load_instructions(drawing_instructions, img_shape)
 
     # convert the Image object into a TkPhoto object
     preview_processed_image = Image.fromarray(ip.get_preview_image())
