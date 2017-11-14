@@ -110,6 +110,10 @@ class MotorController():
             self.st_j1_thread = threading.Thread(target=stepper_worker, args=(self.st_j1, abs(d_steps_j1), j1_dir, STEP_STYLE))
             self.st_j2_thread = threading.Thread(target=stepper_worker, args=(self.st_j2, abs(d_steps_j2), j2_dir, STEP_STYLE))
 
+            self.st_base_thread.start()
+            self.st_j1_thread.start()
+            self.st_j2_thread.start()
+            
             # Update to new values
             # Calculate current angles based on number of steps moved
             self.cur_base_angle = self.cur_base_angle + (d_steps_base * ANGLE_PER_STEP)

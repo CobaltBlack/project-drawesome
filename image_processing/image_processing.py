@@ -97,8 +97,8 @@ class ImageProcessor:
             return
 
         lines = sort_lines_by_distance(lines)
-        total_dist, avg_dist = calc_interline_distance(lines)
-        print "Outline only: Total Dist =", total_dist, "Avg Dist =", avg_dist
+        # total_dist, avg_dist = calc_interline_distance(lines)
+        # print "Outline only: Total Dist =", total_dist, "Avg Dist =", avg_dist
 
         # ### DEBUG IMAGE for detected lines:
         lines_detected_img = debug_detect_outline(lines, self.scaled.shape)
@@ -112,8 +112,8 @@ class ImageProcessor:
 
         lines.extend(shading_lines)
 
-        total_dist, avg_dist = calc_interline_distance(lines)
-        print "Outline + Shading: Total Dist =", total_dist, "Avg Dist =", avg_dist
+        # total_dist, avg_dist = calc_interline_distance(lines)
+        # print "Outline + Shading: Total Dist =", total_dist, "Avg Dist =", avg_dist
 
         self.preview_line_image = cv2.bitwise_and(shaded_img, lines_detected_img)
 
