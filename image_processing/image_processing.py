@@ -868,44 +868,74 @@ def get_test_instructions():
     # Vertical line
     points = []
     points.append([110,  0])
-    points.append([110, 200])
-    points.append([110, 400])
-    points.append([110, 600])
     points.append([110, 800])
     test_line = Line(color, points)
     lines.append(test_line)
 
-    # Horizontal line
+    # # Horizontal line
     points = []
     points.append([110, 150])
     points.append([400, 150])
     test_line = Line(color, points)
     lines.append(test_line)
+    
+    return lines, (786, 1024, 3)
 
-    # Diagonal lines
-    points = []
-    points.append([100, 100])
-    points.append([500, 500])
-    test_line = Line(color, points)
-    lines.append(test_line)
+    # Horizontal pixel-zigzag
+    # points = []
+    # points.append([200, 200])
+    # points.append([201, 201])
+    # points.append([200, 202])
+    # points.append([201, 203])
+    # points.append([200, 204])
+    # points.append([201, 205])
+    # points.append([200, 206])
+    # points.append([201, 207])
+    # points.append([200, 208])
+    # points.append([201, 209])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
+    
+    # # Vertical pixel-zigzags
+    # points = []
+    # points.append([200, 200])
+    # points.append([201, 201])
+    # points.append([202, 200])
+    # points.append([203, 201])
+    # points.append([204, 200])
+    # points.append([205, 201])
+    # points.append([206, 200])
+    # points.append([207, 201])
+    # points.append([208, 200])
+    # points.append([209, 201])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
+    
+    
+    # Diagonal lines to corners
+    # points = []
+    # points.append([100, 100])
+    # points.append([500, 500])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
 
-    points = []
-    points.append([500, 100])
-    points.append([100, 500])
-    test_line = Line(color, points)
-    lines.append(test_line)
+    # points = []
+    # points.append([500, 100])
+    # points.append([100, 500])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
 
-    points = []
-    points.append([0, 0])
-    points.append([1023, 785])
-    test_line = Line(color, points)
-    lines.append(test_line)
+    # points = []
+    # points.append([0, 0])
+    # points.append([1023, 785])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
 
-    points = []
-    points.append([0, 785])
-    points.append([1023, 0])
-    test_line = Line(color, points)
-    lines.append(test_line)
+    # points = []
+    # points.append([0, 785])
+    # points.append([1023, 0])
+    # test_line = Line(color, points)
+    # lines.append(test_line)
 
     return lines, (786, 1024, 3)
 

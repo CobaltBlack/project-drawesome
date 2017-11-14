@@ -88,10 +88,6 @@ class MotorController():
     def run_motor_commands(self, motor_commands):
         print('Number of motor commands!!:', len(motor_commands))
         for command in motor_commands:
-            # Run commands only if motors are done
-            while (self.are_motors_running()):
-                time.sleep(0.001)
-                pass
 
             # Calculate angle, and step differences
             # Round to closest integer number of steps
@@ -119,6 +115,10 @@ class MotorController():
             self.cur_j1_angle = self.cur_j1_angle + (d_steps_j1 * ANGLE_PER_STEP)
             self.cur_j2_angle = self.cur_j2_angle + (d_steps_j2 * ANGLE_PER_STEP)
 
+            # Run commands only if motors are done
+            while (self.are_motors_running()):
+                time.sleep(0.001)
+                pass
 
 
         # end for-loop
