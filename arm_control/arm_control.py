@@ -81,10 +81,10 @@ class ArmController:
             print cmd.to_string()
 
         # Load commands into MotorController
-        mc = MotorController()
+        self.mc = MotorController()
 
         # Start draw on seperate thread, so everything else can keep running
-        mc.run_motor_commands(self.motor)
+        self.mc.run_motor_commands(self.motor)
 
         # Update status messages etc
 
@@ -200,6 +200,7 @@ class ArmController:
                 print ("drawing (" + str(time_current) + "/5)")
                 time.sleep(1)
 
+                
     def draw_image_pause(self):
         global draw_pause
         if (draw_pause == False):
@@ -207,11 +208,17 @@ class ArmController:
         else:
             draw_pause = False
 
+            
     def draw_image_abort(self):
         print ("abort button not yet implemented!")
         global draw_abort
         draw_abort = True
-
+    
+    
+    def get_drawing_progress(self):
+        return self.mc.get_drawing_progress()
+        
+    
 # TEST
 draw_pause = False
 draw_abort = False

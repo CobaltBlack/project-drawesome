@@ -85,7 +85,6 @@ class MotorController():
         self.cur_j2_angle = DEFAULT_J2_ANGLE
 
 
-
     def run_motor_commands(self, motor_commands):
         for command in motor_commands:
             # Run commands only if motors are done
@@ -150,6 +149,11 @@ class MotorController():
         self.tophat.getMotor(2).run(Adafruit_MotorHAT.RELEASE)
         self.tophat.getMotor(3).run(Adafruit_MotorHAT.RELEASE)
         self.tophat.getMotor(4).run(Adafruit_MotorHAT.RELEASE)
+
+
+    def get_drawing_progress(self):
+        return 0
+        
 
 
 # End MotorController
