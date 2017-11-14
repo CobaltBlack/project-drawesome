@@ -55,7 +55,7 @@ class MotorController():
         self.bottomhat = Adafruit_MotorHAT(addr=0x60)
         self.tophat = Adafruit_MotorHAT(addr=0x61)
 
-        self.st_base = self.tophat.getStepper(200, 2)   # stepper at base of arm
+        self.st_base = self.tophat.getStepper(200, 1)   # stepper at base of arm
         self.st_j1 = self.bottomhat.getStepper(200, 1)      # joint1 stepper
         self.st_j2 = self.bottomhat.getStepper(200, 2)      # joint2 stepper
         self.steppers = [self.st_base, self.st_j1, self.st_j2]
