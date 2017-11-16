@@ -80,15 +80,8 @@ class ImageProcessor:
         # Scale and crop image to appropriate proportions and size
         self.scaled = scale(self.scaled, TARGET_SCALE_WIDTH, TARGET_SCALE_HEIGHT)
 
-        # Crop or fit image into aspect ratio
-        # if (crop_mode == "fit"):
-            # self.cropped = fit_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
-        # elif (crop_mode == "crop"):
-            # self.cropped = crop_to_target(self.scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
-
         # Detect edges
-        self.blurred = blur(self.scaled)
-        self.edges = detect_edges(self.blurred)
+        self.edges = detect_edges(self.scaled)
 
         # Use edges to detect lines
         lines = detect_outline(self.edges)
@@ -98,8 +91,6 @@ class ImageProcessor:
             return
 
         lines = sort_lines_by_distance(lines)
-        # total_dist, avg_dist = calc_interline_distance(lines)
-        # print "Outline only: Total Dist =", total_dist, "Avg Dist =", avg_dist
 
         # ### DEBUG IMAGE for detected lines:
         lines_detected_img = debug_detect_outline(lines, self.scaled.shape)
@@ -133,7 +124,7 @@ class ImageProcessor:
         if self.is_image_processed:
             if self.is_image_rotated:
                 return cv2.rotate(self.preview_line_image, cv2.ROTATE_90_CLOCKWISE)
-        
+
             return self.preview_line_image
 
         return []
@@ -141,10 +132,10 @@ class ImageProcessor:
 
     def get_source_image(self):
         return self.src
-        
+
     # Rotates the image to landscape if it is not already
-    def rotate_landscape(self, img):  
-        self.is_image_rotated = False      
+    def rotate_landscape(self, img):
+        self.is_image_rotated = False
         img_h, img_w, _ = img.shape
         if (img_h > img_w):
             rotated = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
@@ -156,66 +147,6 @@ class ImageProcessor:
 
 # end class ImageProcessor
 
-'''
-# Main image processing function
-# Returns array of line drawing instructions
-def process_img(filename, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
-
-    print "Running image_processing module..."
-
-    # Test instructions
-    if use_test_instructions:
-        print "Returning test instructions!"
-        return get_test_instructions(), []
-
-    # Load image
-    src = cv2.imread(filename)
-    if src is None:
-        print "File", filename, "does not exist!"
-        return
-
-    # Scale and crop image to appropriate proportions and size
-    scaled = scale(src)
-
-    # Crop or fit image into aspect ratio
-    if (crop_mode == "fit"):
-        cropped = fit_to_target(scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
-    elif (crop_mode == "crop"):
-        cropped = crop_to_target(scaled, TARGET_SCALE_LENGTH, LETTER_RATIO)
-
-    # Detect edges
-    blurred = blur(cropped)
-    edges = detect_edges(blurred)
-
-    # Use edges to detect lines
-    lines = detect_outline(edges)
-    if lines is None:
-        print "Error: No lines found"
-        wait()
-        return
-
-    # ### DEBUG IMAGE for detected lines:
-    lines_detected_img = debug_detect_outline(lines, cropped.shape)
-
-    # Fill the image by shading
-    shading_lines = []
-    if is_bw:
-        shading_lines, shaded_img = shade_img_bw(cropped)
-    else:
-        shading_lines, shaded_img = shade_img_color(cropped)
-
-    lines.extend(shading_lines)
-
-    final = cv2.bitwise_and(shaded_img, lines_detected_img)
-
-    if enable_debug:
-        cv2.imshow('Original scaled', cropped)
-        cv2.imshow('Outline detected', lines_detected_img)
-        cv2.imshow('OUtline + shading', final)
-        wait()
-
-    return lines, final
-'''
 
 # Scale image to fit in targeted resolution while maintaining aspect ratio
 def scale(img, target_width, target_height):
@@ -240,20 +171,15 @@ def scale(img, target_width, target_height):
     return scaled
 
 
-# Blurs the image for edge detection
-def blur(img):
+# Runs Canny edge detection
+def detect_edges(blurred):
 
     # Gaussian Blur
     blur_kernel_size = 5 # must be odd. larger -> more blur.
     blurred = cv2.GaussianBlur(img, (blur_kernel_size, blur_kernel_size), 0)
 
+    # Bilateral Filter to sharpen edges
     blurred2 = cv2.bilateralFilter(blurred, 7, 75, 75)
-
-    return blurred2
-
-
-# Runs Canny edge detection
-def detect_edges(blurred):
 
     edges = cv2.Canny(blurred, 50, 150)
     return edges
@@ -481,11 +407,6 @@ def shade_img_bw(src):
 # Return list of lines that shades the image
 # Returned lines use CMYK colors
 def shade_img_color(src):
-    # IDEAS:
-    # Shade using alternating color/black
-    # Color hue is whichever of the base colors it is the closest to
-    # Higher saturation: More color lines, low sat: less color
-    # Higher value: more "blanks" (less lines), Low value: more black lines
 
     canvas = np.zeros(src.shape, np.uint8)
     canvas[:,:] = (255, 255, 255)
@@ -602,9 +523,9 @@ def rgb_to_cmyk_imgs(src):
 
 
 cmyk_scale = 255
-
+BLACK_THRESH = 30
 def rgb_to_cmyk(r, g, b):
-    if (r == 0) and (g == 0) and (b == 0):
+    if (r < BLACK_THRESH) and (g  < BLACK_THRESH) and (b < BLACK_THRESH):
         # black
         return 0, 0, 0, cmyk_scale
 
@@ -739,7 +660,8 @@ def gen_crosshatch(shape, spacing, rotation, is_bw=1):
     return canvas
 
 
-# Returns a list of lines with same size, but ordered such that the distance between the end and start of the next line is minimized (minimizes the distance that the arm has to travel with the pen up)
+# Returns a list of lines with same size, but ordered such that the distance between the end and start of the next line is minimized
+# Purpose of this operation is to minimize the distance that the arm has to travel with the pen up, which is wasted time
 def sort_lines_by_distance(lines):
     num_lines = len(lines)
     if num_lines == 0:
@@ -807,7 +729,7 @@ def calc_interline_distance(lines):
     return total_dist, total_dist / num_lines
 
 
-# DEBUG IMAGE for detected lines:
+# DEBUG IMAGE for detected lines
 def debug_detect_outline(lines, shape, endpoints_only=0):
 
     # Draw the lines on a blank canvas
@@ -850,6 +772,7 @@ def wait():
 	cv2.waitKey()
 	cv2.destroyAllWindows()
 
+# Returns the perpendicular angle in range 0 - 180
 def get_perpendicular_angle(degrees):
     while (degrees > 180):
         degrees = degrees % 180
@@ -860,6 +783,7 @@ def get_perpendicular_angle(degrees):
     return degrees + 90
 
 
+# Return some test lines for debug purposes
 def get_test_instructions():
     lines = []
 
@@ -878,7 +802,7 @@ def get_test_instructions():
     points.append([400, 150])
     test_line = Line(color, points)
     lines.append(test_line)
-    
+
     return lines, (786, 1024, 3)
 
     # Horizontal pixel-zigzag
@@ -895,7 +819,7 @@ def get_test_instructions():
     # points.append([201, 209])
     # test_line = Line(color, points)
     # lines.append(test_line)
-    
+
     # # Vertical pixel-zigzags
     # points = []
     # points.append([200, 200])
@@ -910,8 +834,8 @@ def get_test_instructions():
     # points.append([209, 201])
     # test_line = Line(color, points)
     # lines.append(test_line)
-    
-    
+
+
     # Diagonal lines to corners
     # points = []
     # points.append([100, 100])
@@ -944,4 +868,3 @@ def dist_points(p1, p2):
     dx = abs(p2[0] - p1[0])
     dy = abs(p2[1] - p1[1])
     return math.sqrt(dy**2 + dx**2)
-
