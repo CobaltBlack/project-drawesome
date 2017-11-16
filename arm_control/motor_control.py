@@ -55,7 +55,7 @@ class MotorController():
         self.bottomhat = Adafruit_MotorHAT(addr=0x60)
         self.tophat = Adafruit_MotorHAT(addr=0x61)
 
-        self.st_base = self.tophat.getStepper(200, 2)   # stepper at base of arm
+        self.st_base = self.tophat.getStepper(200, 1)   # stepper at base of arm
         self.st_j1 = self.bottomhat.getStepper(200, 1)      # joint1 stepper
         self.st_j2 = self.bottomhat.getStepper(200, 2)      # joint2 stepper
         self.steppers = [self.st_base, self.st_j1, self.st_j2]
@@ -101,9 +101,12 @@ class MotorController():
             # Round to closest integer number of steps
             d_steps_base = int(round((command.base_angle - self.cur_base_angle) / ANGLE_PER_STEP))
             d_steps_j1 = int(round((command.j1_angle - self.cur_j1_angle) / ANGLE_PER_STEP))
-            d_steps_j2 = int(round((command.j2_angle - self.cur_j2_angle) / ANGLE_PER_STEP))
 
-            # Set speed based on calculation with duration
+            # Geometric/mechanical behaviour of the arm
+            target_l2_angle = 180 - command.j1_angle - command.j2_angle
+            d_steps_j2 = int(round((target_l2_angle - self.cur_j2_angle) / ANGLE_PER_STEP))
+
+            # Set speed based on calculation with duration??
 
             # Determine directions to step
             # XOR (^) operator to reverse direction on some motors based on setup
@@ -111,11 +114,14 @@ class MotorController():
             j1_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j1 > 0) ^ ST_J1_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
             j2_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j2 > 0) ^ ST_J2_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
 
-            print('Starting threads')
             # Set up threads for each motor to run simultaneously
             self.st_base_thread = threading.Thread(target=stepper_worker, args=(self.st_base, abs(d_steps_base), base_dir, STEP_STYLE))
             self.st_j1_thread = threading.Thread(target=stepper_worker, args=(self.st_j1, abs(d_steps_j1), j1_dir, STEP_STYLE))
             self.st_j2_thread = threading.Thread(target=stepper_worker, args=(self.st_j2, abs(d_steps_j2), j2_dir, STEP_STYLE))
+
+            self.st_base_thread.start()
+            self.st_j1_thread.start()
+            self.st_j2_thread.start()
 
             # Update to new values
             # Calculate current angles based on number of steps moved
@@ -163,7 +169,7 @@ class MotorController():
 
     def get_drawing_progress(self):
         return progress_current/progress_total
-        
+
 
 # End MotorController
 
