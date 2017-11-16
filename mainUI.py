@@ -72,7 +72,7 @@ def process_image():
     processing.start()
     
 def process_image_threaded():
-    set_cursor_wait()
+    #set_cursor_wait()
     update_status_message("Image processing...")
 
     # process image
@@ -87,7 +87,7 @@ def process_image_threaded():
     # preview
     display_image(preview_processed_image)
 
-    set_cursor_normal()
+    #set_cursor_normal()
     update_status_message("Image processed!")
 
 def draw_image():
@@ -101,27 +101,40 @@ def draw_image():
     global toolbar
     toolbar.destroy()
     button_setup_drawing()
-
+    
+    # draw on seperate thread
     drawing = threading.Thread(target=draw_image_threaded, args=[])
     drawing.start()
+    
+    # update progress until complete
+    progress = threading.Thread(target=update_drawing_progress_threaded, args=[])
+    progress.start()
 
 def draw_image_threaded():
-    set_cursor_wait()
+    #set_cursor_wait()
     update_status_message("Image drawing...")
 
-    
     ac.testing()
     #ac.draw_loaded_instructions()
-    
 
     # update buttons
     global toolbar
     toolbar.destroy()
     button_setup_normal()
     
-    set_cursor_normal()
+    #set_cursor_normal()
     update_status_message("Image drawn!")
 
+# TODO
+def update_drawing_progress_threaded():
+    while (ac.get_drawing_progress != 1):
+        time.sleep(1)
+        update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
+        print "drawing"
+    
+    time.sleep(1)
+    update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% Drawing complete.")
+    
 def draw_image_pause():
     ac.draw_image_pause()
     
@@ -155,11 +168,7 @@ def update_status_message(message):
     status.config(text=message)
     
 def set_cursor_wait():
-    return
-    # disabled for pi @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-    #root.config(cursor="starting")  # arrow + circle
-    
-    
+    root.config(cursor="starting")  # arrow + circle
     #root.config(cursor="wait")     # circle
     
 def set_cursor_normal():

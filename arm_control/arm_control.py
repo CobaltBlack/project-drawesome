@@ -221,7 +221,7 @@ class ArmController:
 
         
     def testing(self):
-        # TEST - artificial progress
+        # TEST - artificial progress       
         time_current = 0
         while (True):
             if (time_current == 5):

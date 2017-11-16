@@ -83,11 +83,19 @@ class MotorController():
         self.cur_base_angle = DEFAULT_BASE_ANGLE
         self.cur_j1_angle = DEFAULT_J1_ANGLE
         self.cur_j2_angle = DEFAULT_J2_ANGLE
+        
+        # progress bar
+        self.progress_current = 0
+        self.progress_total = 0
 
 
     def run_motor_commands(self, motor_commands):
         print('Number of motor commands!!:', len(motor_commands))
+        self.progress_current = 0
+        self.progress_total += len(motor_commands)
+        
         for command in motor_commands:
+            self.progress_current += 1
 
             # Calculate angle, and step differences
             # Round to closest integer number of steps
@@ -154,9 +162,8 @@ class MotorController():
 
 
     def get_drawing_progress(self):
-        return 0
+        return progress_current/progress_total
         
-
 
 # End MotorController
 
