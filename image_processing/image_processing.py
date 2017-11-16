@@ -91,6 +91,7 @@ class ImageProcessor:
             return
 
         lines = sort_lines_by_distance(lines)
+        print 'Number of lines for outline:', len(lines)
 
         # ### DEBUG IMAGE for detected lines:
         lines_detected_img = debug_detect_outline(lines, self.scaled.shape)
@@ -102,6 +103,7 @@ class ImageProcessor:
         else:
             shading_lines, shaded_img = shade_img_color(self.scaled)
 
+        print 'Number of lines for shading:', len(shading_lines)
         lines.extend(shading_lines)
 
         # total_dist, avg_dist = calc_interline_distance(lines)
@@ -114,6 +116,7 @@ class ImageProcessor:
         if enable_debug:
             # cv2.imshow('Original scaled', cropped)
             # cv2.imshow('Outline detected', lines_detected_img)
+            cv2.imshow('Source', self.scaled)
             cv2.imshow('OUtline + shading', self.preview_line_image)
             wait()
 
@@ -172,16 +175,20 @@ def scale(img, target_width, target_height):
 
 
 # Runs Canny edge detection
-def detect_edges(blurred):
+def detect_edges(img):
+
+    # Histogram equalization, make bright colors brighter, dark colors darker
+    img2 = normalize_brightness(img)
 
     # Gaussian Blur
-    blur_kernel_size = 5 # must be odd. larger -> more blur.
-    blurred = cv2.GaussianBlur(img, (blur_kernel_size, blur_kernel_size), 0)
+    blur_kernel_size = 7 # must be odd. larger -> more blur.
+    blurred = cv2.GaussianBlur(img2, (blur_kernel_size, blur_kernel_size), 0)
 
     # Bilateral Filter to sharpen edges
-    blurred2 = cv2.bilateralFilter(blurred, 7, 75, 75)
+    blurred = cv2.bilateralFilter(blurred, 9, 75, 75)
 
     edges = cv2.Canny(blurred, 50, 150)
+
     return edges
 
 
@@ -277,19 +284,18 @@ def detect_outline(edges, min_line_length=5, return_only_endpoints=0, color='bla
     return lines
 
 
-# Do something by converting to another color space
-# Not too useful
+# Histogram equalization of brightness to make bright colors brighter, dark colors darker
+# https://docs.opencv.org/3.1.0/d5/daf/tutorial_py_histogram_equalization.html
 def normalize_brightness(img):
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2Lab)
 
-    for row in hsv:
-        for pixel in row:
-            pixel[1] = 255
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    cl1 = clahe.apply(lab[:, :, 0])
+    lab[:, :, 0] = cl1
 
-    bgr = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    bgr = cv2.cvtColor(lab, cv2.COLOR_Lab2BGR)
 
     return bgr
-
 
 
 def fit_to_target(img, target_length, target_ratio):
@@ -397,8 +403,6 @@ def shade_img_bw(src):
     # Add lines to main list
     lines.extend(sorted_lines)
 
-    print 'Shading len(lines)', len(lines)
-
     debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
 
     return lines, debug_img
@@ -480,10 +484,7 @@ def shade_img_color(src):
         sorted_lines = sort_lines_by_distance(detected_lines)
         lines.extend(sorted_lines)
 
-
-    # end for-loop
-
-    print 'len(lines) from shade_img_color', len(lines)
+    # end for-loop of color channel
 
     debug_img = debug_detect_outline(lines, src.shape, endpoints_only=1)
 
@@ -512,11 +513,10 @@ def rgb_to_cmyk_imgs(src):
 
             c_val, m_val, y_val, k_val = rgb_to_cmyk(pixel_r, pixel_g, pixel_b)
 
-            for img in [c_img, m_img, y_img, k_img]:
-                c_img.itemset((y,x), 255-c_val)
-                m_img.itemset((y,x), 255-m_val)
-                y_img.itemset((y,x), 255-y_val)
-                k_img.itemset((y,x), 255-k_val)
+            c_img.itemset((y,x), 255-c_val)
+            m_img.itemset((y,x), 255-m_val)
+            y_img.itemset((y,x), 255-y_val)
+            k_img.itemset((y,x), 255-k_val)
 
     print "Done converting image to CMYK"
     return c_img, m_img, y_img, k_img
@@ -771,6 +771,7 @@ def debug_detect_outline(lines, shape, endpoints_only=0):
 def wait():
 	cv2.waitKey()
 	cv2.destroyAllWindows()
+
 
 # Returns the perpendicular angle in range 0 - 180
 def get_perpendicular_angle(degrees):
