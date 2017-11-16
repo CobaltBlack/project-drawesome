@@ -96,7 +96,7 @@ class MotorController():
 
             # Geometric/mechanical behaviour of the arm
             target_l2_angle = 180 - command.j1_angle - command.j2_angle
-            d_steps_j2 = int(round((target_l2_angle - self.cur_j2_angle) / ANGLE_PER_STEP)
+            d_steps_j2 = int(round((target_l2_angle - self.cur_j2_angle) / ANGLE_PER_STEP))
 
             # Set speed based on calculation with duration??
 
