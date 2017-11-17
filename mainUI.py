@@ -19,6 +19,9 @@ DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
 IMAGE_DISPLAY_SIZE = 640
 
+global is_image_processed
+is_image_processed = False
+
 def open_image():
     update_status_message("Please choose an image file...")
 
@@ -33,6 +36,8 @@ def open_image():
     if ip.load_image(file_name): # load in image to image processor
         display_image(Image.open(file_name))
         update_status_message("Image loaded!")
+        global is_image_processed
+        is_image_processed = False
     else:
         update_status_message("Incorrect format!")
 
@@ -59,6 +64,8 @@ def take_picture():
     if ip.load_image(pi_photo_filename): # load in image to image processor
         display_image(Image.open(pi_photo_filename))
         update_status_message("Image captured!")
+        global is_image_processed
+        is_image_processed = False
     else:
         update_status_message("Failed to capture image!")
 
@@ -68,10 +75,19 @@ def process_image():
         print "No loaded image!"
         update_status_message("No loaded image!")
         return
+        
+    global is_image_processed
+    if is_image_processed:
+        print "Image already processed!"
+        update_status_message("Image already processed!")
+        return
 
     processing = threading.Thread(target=process_image_threaded, args=[])
     processing.start()
 
+global processing
+processing = False
+    
 def process_image_threaded():
     # disable buttons
     button_normal_disable()
@@ -98,6 +114,8 @@ def process_image_threaded():
     #set_cursor_normal()
     processing = False
     update_status_message("Image processed!")
+    global is_image_processed
+    is_image_processed = True
 
     # re-enable buttons
     button_normal_enable()
@@ -128,8 +146,15 @@ def dot_dot_dot():
 def draw_image():
     # check conditions
     if not ip.is_image_loaded:
+        print "No loaded image!"
+        update_status_message("No loaded image!")
+        return
+        
+    # check conditions
+    global is_image_processed
+    if not is_image_processed:
         print "No processed image!"
-        update_status_message("No processed image!")
+        update_status_message("Process image first!")
         return
     
     # update buttons
@@ -326,6 +351,9 @@ def button_setup_normal():
     button_draw.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
+    
+    # enable/disable correct buttons
+    button_normal_enable()
 
 def button_setup_drawing():
     print("button_setup_drawing")
@@ -334,7 +362,7 @@ def button_setup_drawing():
     toolbar.destroy()
     
     toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
-    toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+    toolbar.pack(anchor=CENTER, fill=X, padx=10, pady=5)
     # Buttons
     global button_pause
     button_pause = ttk.Button(toolbar, text="PAUSE", width=22, command=draw_image_pause)
@@ -360,9 +388,9 @@ def button_normal_enable():
     global button_capture
     button_capture.config(state=NORMAL)
     global button_process
-    button_process.config(state=NORMAL)
+    button_process.config(state=NORMAL)#DISABLED)
     global button_draw
-    button_draw.config(state=NORMAL)
+    button_draw.config(state=NORMAL)#DISABLED)
     
 def button_process_disable():
     global button_process
@@ -380,6 +408,25 @@ def button_draw_enable():
     global button_draw
     button_draw.config(state=NORMAL)
     
+def check_buttons():
+    while (True):
+        time.sleep(0.2)
+        print ("A")
+        
+        if (is_image_processed):
+            button_draw_enable()
+            print ("B")
+            break
+        
+        global processing
+        if (processing):
+            print ("C")
+            break
+
+        if (ip.is_image_loaded):
+            print ("D")
+            button_process_enable()
+    
 # Set up
 global root
 root = Tk()
@@ -389,7 +436,7 @@ root.resizable(width=False, height=False)
 root.configure(background='#DCDAD5')
 sp = os.path.dirname(os.path.realpath(__file__))
 imgicon = PhotoImage(file=os.path.join(sp,'paint.gif'))
-root.tk.call('wm', 'iconphoto', root._w, imgicon)  
+root.tk.call('wm', 'iconphoto', root._w, imgicon)
 
 s = ttk.Style()
 s.theme_use('clam')
@@ -398,6 +445,8 @@ s.theme_use('clam')
 file_name = ""
 ip = ImageProcessor()
 ac = ArmController()
+#checking = threading.Thread(target=check_buttons, args=[])
+#checking.start()
 
 # Menu bar set up
 menubar = Menu(root)
