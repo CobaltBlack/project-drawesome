@@ -40,6 +40,8 @@ def open_image():
         update_status_message("Image loaded!")
         global is_image_processed
         is_image_processed = False
+        button_process_enable()
+        button_draw_disable()
     else:
         update_status_message("Incorrect format!")
 
@@ -68,6 +70,8 @@ def take_picture():
         update_status_message("Image captured!")
         global is_image_processed
         is_image_processed = False
+        button_process_enable()
+        button_draw_disable()
     else:
         update_status_message("Failed to capture image!")
 
@@ -118,9 +122,13 @@ def process_image_threaded():
     update_status_message("Image processed!")
     global is_image_processed
     is_image_processed = True
+    button_draw_enable()
 
     # re-enable buttons
     button_normal_enable()
+    
+    button_draw_enable()
+    button_process_disable()
 
 # nothing to see here folks
 def dot_dot_dot():
@@ -182,6 +190,7 @@ def draw_image_threaded():
 
     # update buttons
     button_setup_normal()
+    button_process_disable()
 
     #set_cursor_normal()
     update_status_message("Image drawn!")
@@ -404,9 +413,9 @@ def button_normal_enable():
     global button_capture
     button_capture.config(state=NORMAL)
     global button_process
-    button_process.config(state=NORMAL)#DISABLED)
+    button_process.config(state=NORMAL)
     global button_draw
-    button_draw.config(state=NORMAL)#DISABLED)
+    button_draw.config(state=NORMAL)
     
 def button_process_disable():
     global button_process
@@ -498,6 +507,8 @@ toolbar_parent.pack(anchor=CENTER, fill=X)
 global toolbar
 toolbar = Frame(toolbar_parent)
 button_setup_normal()
+button_process_disable()
+button_draw_disable()
 # Pack
 toolbar_parent.pack(side=BOTTOM, fill=X)
 
