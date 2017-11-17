@@ -17,7 +17,7 @@ import time
 
 DISPLAY_WIDTH = 1920
 DISPLAY_HEIGHT = 1080
-IMAGE_DISPLAY_SIZE = 640
+IMAGE_DISPLAY_SIZE = 800
 
 global is_image_processed
 is_image_processed = False
@@ -465,7 +465,7 @@ def check_buttons():
 global root
 root = Tk()
 root.title("Image Processor")
-root.geometry("640x700")
+root.geometry("800x860")
 root.resizable(width=False, height=False)
 root.configure(background='#DCDAD5')
 sp = os.path.dirname(os.path.realpath(__file__))
@@ -492,7 +492,7 @@ filemenu.add_command(label="Image Settings", command=settings_window)
 filemenu.add_command(label="Debug", command=button_setup_normal)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
-menubar.add_cascade(label="Options", menu=filemenu)
+#menubar.add_cascade(label="Options", menu=filemenu)
 
 # Status bar
 status = Label(root, text="Welcome to Team Drawsome Image Processor!", bd = 1,  anchor = W)
