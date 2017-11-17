@@ -128,7 +128,7 @@ def dot_dot_dot():
 def draw_image():
     # check conditions
     if not ip.is_image_loaded:
-        print "No loaded image!"
+        print "No processed image!"
         update_status_message("No processed image!")
         return
     
@@ -310,20 +310,20 @@ def button_setup_normal():
     toolbar.destroy()
 
     toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
-    toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
+    toolbar.pack(anchor=CENTER, fill=X, padx=10, pady=5)
     # Buttons
     global button_load
-    button_load = ttk.Button(toolbar, text="LOAD", width=9, command=open_image)
-    button_load.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    button_load = ttk.Button(toolbar, text="LOAD", width=22, command=open_image)
+    button_load.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_capture
-    button_capture = ttk.Button(toolbar, text="CAPTURE", width=9, command=take_picture)
-    button_capture.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    button_capture = ttk.Button(toolbar, text="CAPTURE", width=22, command=take_picture)
+    button_capture.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_process
-    button_process = ttk.Button(toolbar, text="PROCESS", width=9, command=process_image)
-    button_process.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    button_process = ttk.Button(toolbar, text="PROCESS", width=22, command=process_image)
+    button_process.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_draw
-    button_draw = ttk.Button(toolbar, text="DRAW", width=9, command=draw_image)
-    button_draw.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    button_draw = ttk.Button(toolbar, text="DRAW", width=22, command=draw_image)
+    button_draw.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
 
@@ -337,10 +337,10 @@ def button_setup_drawing():
     toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
     # Buttons
     global button_pause
-    button_pause = ttk.Button(toolbar, text="PAUSE", width=9, command=draw_image_pause)
-    button_pause.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-    b = ttk.Button(toolbar, text="ABORT", width=9, command=draw_image_abort)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    button_pause = ttk.Button(toolbar, text="PAUSE", width=22, command=draw_image_pause)
+    button_pause.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
+    b = ttk.Button(toolbar, text="ABORT", width=22, command=draw_image_abort)
+    b.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
     
@@ -364,12 +364,32 @@ def button_normal_enable():
     global button_draw
     button_draw.config(state=NORMAL)
     
+def button_process_disable():
+    global button_process
+    button_process.config(state=DISABLED)
+    
+def button_process_enable():
+    global button_process
+    button_process.config(state=NORMAL)
+    
+def button_draw_disable():
+    global button_draw
+    button_draw.config(state=DISABLED)
+    
+def button_draw_enable():
+    global button_draw
+    button_draw.config(state=NORMAL)
+    
 # Set up
 global root
 root = Tk()
 root.title("Image Processor")
 root.geometry("640x700")
+root.resizable(width=False, height=False)
 root.configure(background='#DCDAD5')
+sp = os.path.dirname(os.path.realpath(__file__))
+imgicon = PhotoImage(file=os.path.join(sp,'paint.gif'))
+root.tk.call('wm', 'iconphoto', root._w, imgicon)  
 
 s = ttk.Style()
 s.theme_use('clam')

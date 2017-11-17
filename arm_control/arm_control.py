@@ -275,6 +275,7 @@ class ArmController:
 
 
     def draw_image_pause(self):
+        self.draw_abort = not self.draw_abort
         self.mc.drawing_paused = not self.mc.drawing_paused
 
     def draw_image_abort(self):
