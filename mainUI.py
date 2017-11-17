@@ -8,7 +8,7 @@ from image_processing.image_processing import ImageProcessor
 from arm_control.arm_control import ArmController
 
 from Tkinter import *
-import ttk as ttk
+#mport ttk as ttk
 from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
@@ -354,16 +354,16 @@ def button_setup_normal():
     toolbar.pack(anchor=CENTER, fill=X, padx=10, pady=5)
     # Buttons
     global button_load
-    button_load = ttk.Button(toolbar, text="LOAD", width=22, command=open_image)
+    button_load = Button(toolbar, text="LOAD", width=20, command=open_image)
     button_load.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_capture
-    button_capture = ttk.Button(toolbar, text="CAPTURE", width=22, command=take_picture)
+    button_capture = Button(toolbar, text="CAPTURE", width=20, command=take_picture)
     button_capture.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_process
-    button_process = ttk.Button(toolbar, text="PROCESS", width=22, command=process_image)
+    button_process = Button(toolbar, text="PROCESS", width=20, command=process_image)
     button_process.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     global button_draw
-    button_draw = ttk.Button(toolbar, text="DRAW", width=22, command=draw_image)
+    button_draw = Button(toolbar, text="DRAW", width=20, command=draw_image)
     button_draw.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
@@ -381,9 +381,9 @@ def button_setup_drawing():
     toolbar.pack(anchor=CENTER, fill=X, padx=10, pady=5)
     # Buttons
     global button_pause
-    button_pause = ttk.Button(toolbar, text="PAUSE", width=22, command=draw_image_pause)
+    button_pause = Button(toolbar, text="PAUSE", width=20, command=draw_image_pause)
     button_pause.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
-    b = ttk.Button(toolbar, text="ABORT", width=22, command=draw_image_abort)
+    b = Button(toolbar, text="ABORT", width=20, command=draw_image_abort)
     b.pack(anchor=CENTER, side=LEFT, padx=3, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
@@ -463,8 +463,8 @@ sp = os.path.dirname(os.path.realpath(__file__))
 imgicon = PhotoImage(file=os.path.join(sp,'paint.gif'))
 root.tk.call('wm', 'iconphoto', root._w, imgicon)
 
-s = ttk.Style()
-s.theme_use('clam')
+#s = ttk.Style()
+#s.theme_use('clam')
 
 # initialization
 file_name = ""
@@ -486,8 +486,9 @@ filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Options", menu=filemenu)
 
 # Status bar
-status = ttk.Label(root, text="Welcome to Team Drawsome Image Processor!")#, bd = 1, relief = SUNKEN, anchor = W)
+status = Label(root, text="Welcome to Team Drawsome Image Processor!", bd = 1,  anchor = W)
 status.pack(side = BOTTOM, fill = X)
+status.configure(background='#DCDAD5')
 
 # Button bar
 global toolbar_parent
@@ -501,7 +502,7 @@ button_setup_normal()
 toolbar_parent.pack(side=BOTTOM, fill=X)
 
 # Button bar seperator
-separator = ttk.Frame(height=2)#, bd=1, relief=SUNKEN)
+separator = Frame(height=2)#, bd=1, relief=SUNKEN)
 separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 
 # Canvas set up
