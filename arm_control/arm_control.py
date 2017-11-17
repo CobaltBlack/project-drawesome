@@ -7,60 +7,66 @@ Then, it sends the physical instructions to motor_control.py to move the actual 
 
 import time
 from math import *
-from motor_control import MotorController, MotorCommand
+from motor_control import MotorController, MotorCommand, DEFAULT_BASE_ANGLE, DEFAULT_J1_ANGLE, DEFAULT_J2_ANGLE
 
 # Arm segment lengths (units in mm)
 L1 = 160.0 # TODO: Update limb lengths
 L2 = 160.0
 L3 = 50.0
 ARM_MAX_LENGTH = L1 + L2
-MIN_RADIUS = 100.0  # Closest to the base that the arm can reach
+MIN_RADIUS = 180.0  # Closest to the base that the arm can reach
 
-PEN_R_OFFSET = 10.0     # Horizontal offset from wrist of the arm to pen location
-PEN_Z_OFFSET = 50.0     # Vertical offset from wrist of arm to tip of pen
+PEN_R_OFFSET = 75.0     # Horizontal offset from wrist of the arm to pen location
+PEN_Z_OFFSET = 65.0     # Vertical offset from wrist of arm to tip of pen
 
 GROUND_TO_CANVAS_DISTANCE = 0   # How far above the ground the canvas is
 Y_REACH_MAX = 0 # init in calculate_arm_reach()
 Y_REACH_MIN = 0 # init in calculate_arm_reach()
 
-GROUND_TO_BASE_HEIGHT = 122.0 # Height from first arm joint to ground
+GROUND_TO_BASE_HEIGHT = 132.0 # Height from first arm joint to ground
 
-PEN_LIFT_DISTANCE   = 10.0                              # Distance to lift pen off the canvas (mm)
+PEN_LIFT_DISTANCE   = 50.0                              # Distance to lift pen off the canvas (mm)
 PEN_DOWN_Z          = - GROUND_TO_BASE_HEIGHT      # Pen is on the canvas
 PEN_UP_Z            = PEN_DOWN_Z + PEN_LIFT_DISTANCE    # unit in mm
 
 # CANVAS_X_MM = 279.4 # units in mm
 # CANVAS_Y_MM = 215.9 # units in mm
 
-CANVAS_X_MM = 250.0 # units in mm
-CANVAS_Y_MM = 187.5 # units in mm
+CANVAS_X_MM = 160.0 # units in mm
+CANVAS_Y_MM = 120.0 # units in mm
 
-CANVAS_X_PX = 1024
-CANVAS_Y_PX = 786
+#CANVAS_X_PX = 1024
+#CANVAS_Y_PX = 786
+CANVAS_X_PX = 640
+CANVAS_Y_PX = 480
 
 PX_TO_MM_RATIO = CANVAS_Y_PX / CANVAS_Y_MM
 
 CANVAS_TO_POLAR_OFFSET_X = -CANVAS_X_MM / 2
 CANVAS_TO_POLAR_OFFSET_Y = CANVAS_Y_MM + MIN_RADIUS # Remember to invert Y; opencv increases Y downwards
 
-ARM_SPEED_MM_PER_S = 50.0
+ARM_SPEED_MM_PER_S = 0.5
 PEN_UP_DOWN_DURATION = 0.1
 
-MM_PER_MOVESLICE = 2
+MM_PER_MOVESLICE = 10
 
+LAW_OF_COSINE_ERROR = -99
 
 class ArmController:
 
     def __init__(self):
         print "Initializing ArmController..."
-        self.curr_x = 0
-        self.curr_y = 0
-        self.curr_z = PEN_UP_Z
+        x, y, z = angles_to_points(DEFAULT_BASE_ANGLE, DEFAULT_J1_ANGLE, DEFAULT_J2_ANGLE)
+        print 'Initial coordinates:', x, y, z
+        self.curr_x = x
+        self.curr_y = y
+        self.curr_z = z
         self.instructions = []
         self.motor_commands = []
         self.draw_pause = False
         self.draw_abort = False
         self.mc = MotorController() # COMMENT WHEN RUNNING ON WINDOWS
+
 
     # Loads instructions and image metadata from image processing
     def load_instructions(self, instructions, img_shape):
@@ -70,37 +76,42 @@ class ArmController:
         self.img_center_offset_y = (CANVAS_Y_PX - img_shape[0]) / 2
 
         print ("Loaded {0} drawing instruction(s)".format(len(instructions)))
+        print self.img_shape
 
 
     # Processes the loaded instructions, then calls starts running the motors on a new thread
     def draw_loaded_instructions(self):
+        print 'draw_loaded_instructions'
 
         # Convert drawing instructions into motor commands
         self.motor_commands = []
         for line in self.instructions:
+            print line.to_string()
             self.create_commands_for_line(line)
 
+        # Return to starting position
+        self.return_to_initial_position()
+
         # debug
-        # for cmd in self.motor_commands:
-            # print cmd.to_string()
-            
+        #for cmd in self.motor_commands:
+        #    print cmd.to_string()
+
         print 'number of motor commands', len(self.motor_commands)
 
         # Load commands into MotorController
         # Start draw on seperate thread, so everything else can keep running
         self.mc.run_motor_commands(self.motor_commands)
-    
+
 
         # Update status messages etc
 
 
     # Parses a line instruction into motor commands
     def create_commands_for_line(self, line):
-        # Pen-up and select color
-        self.pen_up()
 
         # Move to start of line
-        self.move_to(line.points[0])
+        x_polar, y_polar = self.canvas_to_polar_coords(line.points[0])
+        self.add_motor_commands_in_slices(x_polar, y_polar, PEN_UP_Z, no_slice=True)
 
         # Move pen down to canvas
         self.pen_down()
@@ -116,34 +127,21 @@ class ArmController:
     def move_to(self, coordinate):
         # print "move_to coordinate", coordinate
 
-        target_x = coordinate[0]
-        target_y = coordinate[1]
-
-        # Convert units to mm
-        target_x_mm = px_to_mm(target_x)
-        target_y_mm = px_to_mm(target_y)
-
-        # Transform canvas coordinates into polar
-        # Also tries to center the image if it doesnt fully fit resolution
-        # Invert Y because openCV has y backwards
-        x_polar = CANVAS_TO_POLAR_OFFSET_X + (target_x_mm + self.img_center_offset_x)
-        y_polar = CANVAS_TO_POLAR_OFFSET_Y - (target_y_mm + self.img_center_offset_y)
+        x_polar, y_polar = self.canvas_to_polar_coords(coordinate)
 
         # Skip if already on same pixel
         if x_polar == self.curr_x and y_polar == self.curr_y:
             return
 
-        # print("target", target_x, target_y)
-        # print("target polar", x_polar, y_polar)
+        #print("target", coordinate)
+        #print("target polar", x_polar, y_polar)
 
         # Get angle of final positions of each arm motor
         # angles = points_to_angles([[target_y_mm], [PEN_DOWN_Z]]) # obsolete
         # base_angle, j1_angle, j2_angle = point_to_angles(x_polar, y_polar, self.curr_z)
 
         # TODO: Slice movement into smaller segments for straight lines
-        self.add_motor_commands_in_slices(x_polar, y_polar, self.curr_z)
-        
-
+        self.add_motor_commands_in_slices(x_polar, y_polar, self.curr_z)# Adds command to move to canvas-coordinate, while keeping same Z
 
 
     def pen_up(self):
@@ -158,8 +156,8 @@ class ArmController:
         self.curr_z = PEN_UP_Z
 
         # Add to motor command list
-        # new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
-        # self.motor_commands.append(new_command)
+        new_command = MotorCommand(base_angle, joint_angle1, joint_angle2, 0, PEN_UP_DOWN_DURATION)
+        self.motor_commands.append(new_command)
 
 
     def pen_down(self):
@@ -174,54 +172,91 @@ class ArmController:
         self.curr_z = PEN_DOWN_Z
 
         # Add to motor command list
-        # new_command = MotorCommand(theta1, theta2, theta3, px_to_mm(self.curr_x), 0, PEN_UP_DOWN_DURATION)
-        # self.motor_commands.append(new_command)
+        new_command = MotorCommand(base_angle, joint_angle1, joint_angle2, 0, PEN_UP_DOWN_DURATION)
+        self.motor_commands.append(new_command)
 
-        
+
     # adds motor commands to move to target xyz
     # Updates current xyz
-    def add_motor_commands_in_slices(self, target_x, target_y, target_z):
+    def add_motor_commands_in_slices(self, target_x, target_y, target_z, no_slice=False):
         # starting coords
         starting_x = self.curr_x
         starting_y = self.curr_y
         starting_z = self.curr_z
-        
+
         # How far to move in each direction
         dx = target_x - starting_x
         dy = target_y - starting_y
         dz = target_z - starting_z
         move_distance = sqrt(dz**2 + dy**2 + dx**2)
-        
+
+        # Optional no slicing, go straight to target
+        if no_slice:
+
+            move_duration = float(move_distance) / ARM_SPEED_MM_PER_S
+
+            base_angle, j1_angle, j2_angle = point_to_angles(target_x, target_y, target_z)
+            new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, move_duration)
+            self.motor_commands.append(new_command)
+
+            self.curr_x = target_x
+            self.curr_y = target_y
+            self.curr_z = target_z
+            return
+
         # Split each movement into equal sized "slices"
         slices = int(round(move_distance / MM_PER_MOVESLICE))
         if slices < 1:
             slices = 1
-                    
+
         dx_per_slice = dx / slices
         dy_per_slice = dy / slices
         dz_per_slice = dz / slices
-                
+
         for i in range(1, slices + 1):
             next_x = starting_x + (i * dx_per_slice)
             next_y = starting_y + (i * dy_per_slice)
             next_z = starting_z + (i * dz_per_slice)
-            
-            base_angle, j1_angle, j2_angle = point_to_angles(next_x, next_y, next_z)
-            # TODO: error check to makes 
-            
-            # TODO: Calculate how fast to move the motors (in seconds)
-            # move_duration = float(distance_to_target_mm) / ARM_SPEED_MM_PER_S
 
-            new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, 2)
+            base_angle, j1_angle, j2_angle = point_to_angles(next_x, next_y, next_z)
+            # TODO: error check to makes
+
+            # TODO: Calculate how fast to move the motors (in seconds)
+            move_duration = float(move_distance / slices) / ARM_SPEED_MM_PER_S
+
+            new_command = MotorCommand(base_angle, j1_angle, j2_angle, 0, move_duration)
             self.motor_commands.append(new_command)
-        
+
         self.curr_x = target_x
         self.curr_y = target_y
         self.curr_z = target_z
 
-        
+
+    def canvas_to_polar_coords(self, coordinate):
+
+        target_x = coordinate[0]
+        target_y = coordinate[1]
+
+        # Convert units to mm
+        target_x_mm = px_to_mm(target_x)
+        target_y_mm = px_to_mm(target_y)
+
+        # Transform canvas coordinates into polar
+        # Also tries to center the image if it doesnt fully fit resolution
+        # Invert Y because openCV has y backwards
+        polar_x = CANVAS_TO_POLAR_OFFSET_X + (target_x_mm + self.img_center_offset_x)
+        polar_y = CANVAS_TO_POLAR_OFFSET_Y - (target_y_mm + self.img_center_offset_y)
+
+        return polar_x, polar_y
+
+
+    def return_to_initial_position(self):
+        new_command = MotorCommand(DEFAULT_BASE_ANGLE, DEFAULT_J1_ANGLE, DEFAULT_J2_ANGLE, 0, PEN_UP_DOWN_DURATION)
+        self.motor_commands.append(new_command)
+
+
     def testing(self):
-        # TEST - artificial progress       
+        # TEST - artificial progress
         time_current = 0
         while (True):
             if (time_current == 5):
@@ -238,21 +273,14 @@ class ArmController:
                 print ("drawing (" + str(time_current) + "/5)")
                 time.sleep(1)
 
-                
-    def draw_image_pause(self):
-        if (self.draw_pause == False):
-            print ("draw_pause: " + str(self.draw_pause))
-            self.draw_pause = True
-        else:
-            print ("draw_pause: " + str(self.draw_pause))
-            self.draw_pause = False
 
-            
+    def draw_image_pause(self):
+        self.mc.drawing_paused = not self.mc.drawing_paused
+
     def draw_image_abort(self):
-        print ("abort button not yet implemented!")
         self.draw_abort = True
-    
-    
+        self.mc.drawing_aborted = True
+
     def get_drawing_progress(self):
         return self.mc.get_drawing_progress()
 
@@ -352,10 +380,28 @@ def point_to_angles(x, y, z):
     # dist_to_origin is the opposite side for law of cosines
     joint_angle2 = law_of_cosines(L1, L2, dist_to_origin)
 
-    # print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
+    #print("points_to_angles results: base={0}, joint1={1}, joint2={2}".format(degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)))
 
     return degrees(base_angle), degrees(joint_angle1), degrees(joint_angle2)
 
+
+def angles_to_points(base, j1, j2):
+
+    # Find radial distance r and z
+    j2b = j1 + j2 - 90
+    r1 = L1 * cos(radians(j1))
+    h1 = L1 * sin(radians(j1))
+    r2 = L2 * sin(radians(j2b))
+    h2 = L2 * cos(radians(j2b))
+    r = r1 + r2 + PEN_R_OFFSET
+    z = h1 - h2 - PEN_Z_OFFSET
+
+    # Get x, y based on r and base angle
+    x = r * cos(radians(base))
+    y = r * sin(radians(base))
+
+    print("angles_to_points({0}, {1}, {2})".format(x, y, z))
+    return x, y, z
 
 
 # 2-d version
@@ -387,8 +433,8 @@ def distance(x1, y1, x2, y2):
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
     return sqrt(dy**2 + dx**2)
-    
-    
+
+
 def distance3d(x1, y1, z1, x2, y2, z2):
     dx = abs(x2 - x1)
     dy = abs(y2 - y1)
@@ -400,7 +446,7 @@ def law_of_cosines(a, b, c):
     acos_input = (a*a + b*b - c*c) / (2 * a * b)
     if not (-1 < acos_input < 1):
         print "Error: Cannot acos({0})".format(acos_input)
-        return 0
+        return LAW_OF_COSINE_ERROR
     return acos( acos_input )
 
 

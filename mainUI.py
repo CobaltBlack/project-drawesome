@@ -71,7 +71,7 @@ def process_image():
 
     processing = threading.Thread(target=process_image_threaded, args=[])
     processing.start()
-    
+
 def process_image_threaded():
     # disable buttons
     button_normal_disable()
@@ -84,7 +84,7 @@ def process_image_threaded():
     dotting.start()
 
     # process image
-    drawing_instructions, img_shape = ip.process_image()
+    drawing_instructions, img_shape = ip.process_image(use_shading=0)
 
     # load instructions to arm controller
     ac.load_instructions(drawing_instructions, img_shape)
@@ -152,7 +152,7 @@ def draw_image_threaded():
 
     # update buttons
     button_setup_normal()
-    
+
     #set_cursor_normal()
     update_status_message("Image drawn!")
     
@@ -161,20 +161,20 @@ def update_drawing_progress_threaded():
         time.sleep(1)
         update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
         print "progress bar - drawing"
-    
+
     time.sleep(1)
     update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% Drawing complete.")
-    
+
 def draw_image_pause():
     if (ac.draw_pause):
         button_pause.config(text="PAUSE") 
     else:
         button_pause.config(text="UNPAUSE") 
     ac.draw_image_pause()
-    
+
 def draw_image_abort():
     ac.draw_image_abort()
-    
+
 # only pass in PIL.Image objects
 def display_image(image):
     # Resize to smaller fit on window
@@ -206,12 +206,11 @@ def update_status_message(message):
 def update_status_message_threaded(message):
     time.sleep(0.01)
     status.config(text=message)
-    
-    
+
 def set_cursor_wait():
     root.config(cursor="starting")  # arrow + circle
     #root.config(cursor="wait")     # circle
-    
+
 def set_cursor_normal():
     root.config(cursor="")
 

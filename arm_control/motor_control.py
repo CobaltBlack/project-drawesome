@@ -13,8 +13,8 @@ import threading
 # Since there is no way to check the current angle of the arm,
 # we must physically position the arm before starting the program
 DEFAULT_BASE_ANGLE = 90
-DEFAULT_J1_ANGLE = 90
-DEFAULT_J2_ANGLE = 90
+DEFAULT_J1_ANGLE = 140
+DEFAULT_J2_ANGLE = 40
 
 GEAR_RATIO = 9.0 / 32.0
 ANGLE_PER_STEP = (360.0 / 200.0) * GEAR_RATIO
@@ -56,15 +56,15 @@ class MotorController():
         self.tophat = Adafruit_MotorHAT(addr=0x61)
 
         self.st_base = self.tophat.getStepper(200, 1)   # stepper at base of arm
-        self.st_j1 = self.bottomhat.getStepper(200, 1)      # joint1 stepper
-        self.st_j2 = self.bottomhat.getStepper(200, 2)      # joint2 stepper
+        self.st_j1 = self.bottomhat.getStepper(200, 2)      # joint1 stepper
+        self.st_j2 = self.bottomhat.getStepper(200, 1)      # joint2 stepper
         self.steppers = [self.st_base, self.st_j1, self.st_j2]
 
         # TODO: Init gripper motor
 
-        self.st_base.setSpeed(60)          # 30 RPM
-        self.st_j1.setSpeed(60)          # 30 RPM
-        self.st_j2.setSpeed(60)          # 30 RPM
+        self.st_base.setSpeed(10) # unit in RPM
+        self.st_j1.setSpeed(10)
+        self.st_j2.setSpeed(10)
 
         # Empty threads for running each stepper
         self.st_base_thread = threading.Thread()
@@ -83,19 +83,26 @@ class MotorController():
         self.cur_base_angle = DEFAULT_BASE_ANGLE
         self.cur_j1_angle = DEFAULT_J1_ANGLE
         self.cur_j2_angle = DEFAULT_J2_ANGLE
-        
+
+        #  The stepper 2 angle controls the j2 angle
+        self.cur_s2_angle = 180 - DEFAULT_J1_ANGLE - DEFAULT_J2_ANGLE
+
         # progress bar
-        self.progress_current = 0
-        self.progress_total = 1
+        self.progress_current = 0.0
+        self.progress_total = 1.0
+
+        self.drawing_paused = True
+        self.drawing_aborted = False
 
 
     def run_motor_commands(self, motor_commands):
-        print('Number of motor commands!!:', len(motor_commands))
         self.progress_current = 0
         self.progress_total = len(motor_commands)
-        
+        self.drawing_paused = False
+        self.drawing_aborted = False
+
         for command in motor_commands:
-            self.progress_current += 1
+            self.progress_current += 1.0
 
             # Calculate angle, and step differences
             # Round to closest integer number of steps
@@ -103,16 +110,34 @@ class MotorController():
             d_steps_j1 = int(round((command.j1_angle - self.cur_j1_angle) / ANGLE_PER_STEP))
 
             # Geometric/mechanical behaviour of the arm
-            target_l2_angle = 180 - command.j1_angle - command.j2_angle
-            d_steps_j2 = int(round((target_l2_angle - self.cur_j2_angle) / ANGLE_PER_STEP))
+            target_s2_angle = 180 - command.j1_angle - command.j2_angle
+            d_steps_j2 = int(round((target_s2_angle - self.cur_s2_angle) / ANGLE_PER_STEP))
+
+            if d_steps_base == 0 and d_steps_j1 == 0 and d_steps_j2 == 0:
+                continue
 
             # Set speed based on calculation with duration??
+            base_rpm = int((abs(d_steps_base) / command.move_duration) * 60)
+            j1_rpm = int((abs(d_steps_j1) / command.move_duration) * 60)
+            j2_rpm = int((abs(d_steps_j2) / command.move_duration) * 60)
+
+            if base_rpm > 0:
+                self.st_base.setSpeed(base_rpm)
+            if j1_rpm > 0:
+                self.st_j1.setSpeed(j1_rpm)
+            if j2_rpm > 0:
+                self.st_j2.setSpeed(j2_rpm)
 
             # Determine directions to step
             # XOR (^) operator to reverse direction on some motors based on setup
             base_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_base > 0) ^ ST_BASE_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
             j1_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j1 > 0) ^ ST_J1_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
             j2_dir = Adafruit_MotorHAT.FORWARD if ((d_steps_j2 > 0) ^ ST_J2_DIR_REVERSED) else Adafruit_MotorHAT.BACKWARD
+
+            #print 'progress_current', self.progress_current
+            #print 'command.base_angle {0}, command.j1_angle {1}, command.j2_angle {2}'.format(command.base_angle, command.j1_angle, command.j2_angle)
+            #print 'd_steps_base {0}, d_steps_j1 {1}, d_steps_j2 {2}'.format(d_steps_base, d_steps_j1, d_steps_j2)
+            #print 'base_rpm {0}, j1_rpm {1}, d_steps_j2 {2}'.format(base_rpm, j1_rpm, j2_rpm)
 
             # Set up threads for each motor to run simultaneously
             self.st_base_thread = threading.Thread(target=stepper_worker, args=(self.st_base, abs(d_steps_base), base_dir, STEP_STYLE))
@@ -127,16 +152,21 @@ class MotorController():
             # Calculate current angles based on number of steps moved
             self.cur_base_angle = self.cur_base_angle + (d_steps_base * ANGLE_PER_STEP)
             self.cur_j1_angle = self.cur_j1_angle + (d_steps_j1 * ANGLE_PER_STEP)
-            self.cur_j2_angle = self.cur_j2_angle + (d_steps_j2 * ANGLE_PER_STEP)
+            self.cur_s2_angle = self.cur_s2_angle + (d_steps_j2 * ANGLE_PER_STEP)
+            self.cur_j2_angle = 180 - self.cur_j1_angle - self.cur_s2_angle
 
             # Run commands only if motors are done
-            while (self.are_motors_running()):
+            while (self.are_motors_running() or self.drawing_paused):
+                if self.drawing_aborted:
+                    break
                 time.sleep(0.001)
-                pass
 
+            if self.drawing_aborted:
+                print 'Drawing aborted!'
+                break
 
         # end for-loop
-
+        print 'All motor commands complete!'
         self.turnOffMotors()
 
     # end run_motor_commands()
@@ -149,9 +179,12 @@ class MotorController():
 
     # Returns true if any motor threads are still alive (aka motors are moving)
     def are_motors_running(self):
-        for thread in self.threads:
-            if thread.isAlive():
-                return True
+        if self.st_base_thread.isAlive():
+            return True
+        if self.st_j1_thread.isAlive():
+            return True
+        if self.st_j2_thread.isAlive():
+            return True
         return False
 
 
@@ -168,7 +201,7 @@ class MotorController():
 
 
     def get_drawing_progress(self):
-        return self.progress_current / self.progress_total
+        return round((self.progress_current / self.progress_total) * 100, 1)
 
 
 # End MotorController
