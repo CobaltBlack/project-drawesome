@@ -21,6 +21,8 @@ IMAGE_DISPLAY_SIZE = 640
 
 global is_image_processed
 is_image_processed = False
+global is_drawing
+is_drawing = False
 
 def open_image():
     update_status_message("Please choose an image file...")
@@ -157,9 +159,12 @@ def draw_image():
         update_status_message("Process image first!")
         return
     
+    global is_drawing
+    is_drawing = True
+    
     # update buttons
     button_setup_drawing()
-
+    
     # draw on seperate thread
     drawing = threading.Thread(target=draw_image_threaded, args=[])
     drawing.start()
@@ -181,14 +186,20 @@ def draw_image_threaded():
     #set_cursor_normal()
     update_status_message("Image drawn!")
     
+    global is_drawing
+    is_drawing = False
+    
 def update_drawing_progress_threaded():
-    while (ac.get_drawing_progress() != 1):
+    global is_drawing
+    while (ac.get_drawing_progress() != 1 & is_drawing):
         time.sleep(1)
+        if (ac.draw_pause):
+            status.config(text = "Image drawing... " + str(ac.get_drawing_progress()) + "% - PAUSED")
         update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
         print "progress bar - drawing"
 
     time.sleep(1)
-    update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% Drawing complete.")
+    update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% COMPLETED")
 
 def draw_image_pause():
     if (ac.draw_pause):
@@ -198,7 +209,12 @@ def draw_image_pause():
     ac.draw_image_pause()
 
 def draw_image_abort():
-    ac.draw_image_abort()
+    update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% ABORTED")
+    
+    ac.draw_image_abort() #TODO: UNCOMMENT IN FINAL PRODUCTION
+    
+    global is_drawing
+    is_drawing = False
 
 # only pass in PIL.Image objects
 def display_image(image):
@@ -408,6 +424,15 @@ def button_draw_enable():
     global button_draw
     button_draw.config(state=NORMAL)
     
+def check_button_normal():
+    
+    while (True):
+        time.sleep(2)
+        print ("debug")
+        global is_drawing
+        if (is_drawing == False):
+            button_setup_normal()
+    
 def check_buttons():
     while (True):
         time.sleep(0.2)
@@ -445,8 +470,10 @@ s.theme_use('clam')
 file_name = ""
 ip = ImageProcessor()
 ac = ArmController()
-#checking = threading.Thread(target=check_buttons, args=[])
-#checking.start()
+#deactivate_incorrect_buttons = threading.Thread(target=check_buttons, args=[])
+#deactivate_incorrect_buttons.start()
+#check_button_normal_set = threading.Thread(target=check_button_normal, args=[])
+#check_button_normal_set.start()
 
 # Menu bar set up
 menubar = Menu(root)
