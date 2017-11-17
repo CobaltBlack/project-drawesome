@@ -20,7 +20,7 @@ GEAR_RATIO = 9.0 / 32.0
 ANGLE_PER_STEP = (360.0 / 200.0) * GEAR_RATIO
 
 ST_BASE_DIR_REVERSED = False
-ST_J1_DIR_REVERSED = False
+ST_J1_DIR_REVERSED = True
 ST_J2_DIR_REVERSED = True
 
 STEP_STYLE = Adafruit_MotorHAT.DOUBLE
@@ -86,13 +86,13 @@ class MotorController():
         
         # progress bar
         self.progress_current = 0
-        self.progress_total = 0
+        self.progress_total = 1
 
 
     def run_motor_commands(self, motor_commands):
         print('Number of motor commands!!:', len(motor_commands))
         self.progress_current = 0
-        self.progress_total += len(motor_commands)
+        self.progress_total = len(motor_commands)
         
         for command in motor_commands:
             self.progress_current += 1
@@ -168,7 +168,7 @@ class MotorController():
 
 
     def get_drawing_progress(self):
-        return progress_current/progress_total
+        return self.progress_current / self.progress_total
 
 
 # End MotorController

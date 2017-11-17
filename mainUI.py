@@ -8,6 +8,7 @@ from image_processing.image_processing import ImageProcessor
 from arm_control.arm_control import ArmController
 
 from Tkinter import *
+#from ttk import * TODO
 from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
@@ -127,7 +128,7 @@ def draw_image_threaded():
 
 # TODO
 def update_drawing_progress_threaded():
-    while (ac.get_drawing_progress != 1):
+    while (ac.get_drawing_progress() != 1):
         time.sleep(1)
         update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
         print "drawing"
@@ -298,6 +299,9 @@ root = Tk()
 root.title("Image Processor")
 root.geometry("640x700")
 
+#s = tetekay.Style()
+#s.theme_use('clam')
+
 # initialization
 file_name = ""
 ip = ImageProcessor()
@@ -313,7 +317,7 @@ filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Options", menu=filemenu)
 
 # Status bar
-status = Label(root, text="Loading dank memes...", bd = 1, relief = SUNKEN, anchor = W)
+status = Label(root, text="Welcome!", bd = 1, relief = SUNKEN, anchor = W)
 status.pack(side = BOTTOM, fill = X)
 
 # Button bar

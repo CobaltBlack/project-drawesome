@@ -58,7 +58,7 @@ class ArmController:
         self.curr_z = PEN_UP_Z
         self.instructions = []
         self.motor_commands = []
-
+        self.mc = MotorController() # COMMENT WHEN RUNNING ON WINDOWS
 
     # Loads instructions and image metadata from image processing
     def load_instructions(self, instructions, img_shape):
@@ -85,8 +85,6 @@ class ArmController:
         print 'number of motor commands', len(self.motor_commands)
 
         # Load commands into MotorController
-        self.mc = MotorController()
-
         # Start draw on seperate thread, so everything else can keep running
         self.mc.run_motor_commands(self.motor_commands)
     
