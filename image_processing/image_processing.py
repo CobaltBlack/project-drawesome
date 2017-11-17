@@ -10,8 +10,8 @@ import math
 import numpy as np
 import random
 
-TARGET_SCALE_WIDTH = 1024
-TARGET_SCALE_HEIGHT = 786
+TARGET_SCALE_WIDTH = 640
+TARGET_SCALE_HEIGHT = 480
 TARGET_ASPECT_RATIO = 4.0 / 3.0
 LETTER_RATIO = 8.5 / 11.0
 
@@ -44,6 +44,12 @@ class Line:
         self.color = color
         self.points = points
 
+    def to_string(self):
+        pts_str = ''
+        for pt in self.points:
+            pts_str += '(' + str(pt[0]) + ', ' + str(pt[1]) + ')'
+        return self.color + pts_str 
+
 
 
 class ImageProcessor:
@@ -69,7 +75,7 @@ class ImageProcessor:
         return True
 
 
-    def process_image(self, is_bw=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
+    def process_image(self, is_bw=1, use_shading=1, enable_debug=0, crop_mode="fit", use_test_instructions=0):
         if not self.is_image_loaded:
             print "Error: No image is not loaded!"
             return
@@ -95,21 +101,22 @@ class ImageProcessor:
 
         # ### DEBUG IMAGE for detected lines:
         lines_detected_img = debug_detect_outline(lines, self.scaled.shape)
+        self.preview_line_image = lines_detected_img
 
         # Fill the image by shading
-        shading_lines = []
-        if is_bw:
-            shading_lines, shaded_img = shade_img_bw(self.scaled)
-        else:
-            shading_lines, shaded_img = shade_img_color(self.scaled)
+        if use_shading:
+            shading_lines = []
+            if is_bw:
+                shading_lines, shaded_img = shade_img_bw(self.scaled)
+            else:
+                shading_lines, shaded_img = shade_img_color(self.scaled)
 
-        print 'Number of lines for shading:', len(shading_lines)
-        lines.extend(shading_lines)
+            print 'Number of lines for shading:', len(shading_lines)
+            lines.extend(shading_lines)
+            self.preview_line_image = cv2.bitwise_and(shaded_img, lines_detected_img)
 
         # total_dist, avg_dist = calc_interline_distance(lines)
         # print "Outline + Shading: Total Dist =", total_dist, "Avg Dist =", avg_dist
-
-        self.preview_line_image = cv2.bitwise_and(shaded_img, lines_detected_img)
 
         self.is_image_processed = True
 
@@ -791,20 +798,28 @@ def get_test_instructions():
     color = 'black'
 
     # Vertical line
-    points = []
-    points.append([110,  0])
-    points.append([110, 800])
-    test_line = Line(color, points)
-    lines.append(test_line)
+##    points = []
+##    points.append([320,  0])
+##    points.append([320, 200])
+##    test_line = Line(color, points)
+##    lines.append(test_line)
+    
 
     # # Horizontal line
-    points = []
-    points.append([110, 150])
-    points.append([400, 150])
-    test_line = Line(color, points)
-    lines.append(test_line)
+##    points = []
+##    points.append([200, 240])
+##    points.append([440, 240])
+##    test_line = Line(color, points)
+##    lines.append(test_line)
 
-    return lines, (786, 1024, 3)
+    
+##    points = []
+##    points.append([100, 100])
+##    points.append([300, 300])
+##    test_line = Line(color, points)
+##    lines.append(test_line)
+
+    #return lines, (786, 1024, 3)
 
     # Horizontal pixel-zigzag
     # points = []
@@ -850,19 +865,46 @@ def get_test_instructions():
     # test_line = Line(color, points)
     # lines.append(test_line)
 
-    # points = []
-    # points.append([0, 0])
-    # points.append([1023, 785])
-    # test_line = Line(color, points)
-    # lines.append(test_line)
+##    points = []
+##    points.append([619, 459])
+##    points.append([20, 20])
+##    test_line = Line(color, points)
+##    lines.append(test_line)
+##
+##    points = []
+##    points.append([619, 20])
+##    points.append([20, 459])
+##    test_line = Line(color, points)
+##    lines.append(test_line)
 
-    # points = []
-    # points.append([0, 785])
-    # points.append([1023, 0])
-    # test_line = Line(color, points)
-    # lines.append(test_line)
+    points = []
+    points.append([20, 20])
+    points.append([629, 20])
+    test_line = Line(color, points)
+    lines.append(test_line)
+    
+    points = []
+    points.append([629, 10])
+    points.append([629, 459])
+    test_line = Line(color, points)
+    lines.append(test_line)
 
-    return lines, (786, 1024, 3)
+    points = []
+##    points.append([20, 20])
+##    points.append([619, 20])
+    points.append([619, 459])
+    points.append([20, 459])
+##    points.append([20, 20])
+    test_line = Line(color, points)
+    lines.append(test_line)
+    
+    points = []
+    points.append([20, 459])
+    points.append([20, 20])
+    test_line = Line(color, points)
+    lines.append(test_line)
+
+    return lines, (480, 640, 3)
 
 
 def dist_points(p1, p2):

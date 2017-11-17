@@ -71,13 +71,13 @@ def process_image():
 
     processing = threading.Thread(target=process_image_threaded, args=[])
     processing.start()
-    
+
 def process_image_threaded():
     #set_cursor_wait()
     update_status_message("Image processing...")
 
     # process image
-    drawing_instructions, img_shape = ip.process_image()
+    drawing_instructions, img_shape = ip.process_image(use_shading=0)
 
     # load instructions to arm controller
     ac.load_instructions(drawing_instructions, img_shape)
@@ -102,11 +102,11 @@ def draw_image():
     global toolbar
     toolbar.destroy()
     button_setup_drawing()
-    
+
     # draw on seperate thread
     drawing = threading.Thread(target=draw_image_threaded, args=[])
     drawing.start()
-    
+
     # update progress until complete
     progress = threading.Thread(target=update_drawing_progress_threaded, args=[])
     progress.start()
@@ -115,14 +115,14 @@ def draw_image_threaded():
     #set_cursor_wait()
     update_status_message("Image drawing...")
 
-    ac.testing()
-    #ac.draw_loaded_instructions()
+    #ac.testing()
+    ac.draw_loaded_instructions()
 
     # update buttons
     global toolbar
     toolbar.destroy()
     button_setup_normal()
-    
+
     #set_cursor_normal()
     update_status_message("Image drawn!")
 
@@ -132,16 +132,16 @@ def update_drawing_progress_threaded():
         time.sleep(1)
         update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
         print "drawing"
-    
+
     time.sleep(1)
     update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% Drawing complete.")
-    
+
 def draw_image_pause():
     ac.draw_image_pause()
-    
+
 def draw_image_abort():
     ac.draw_image_abort()
-    
+
 # only pass in PIL.Image objects
 def display_image(image):
     # Resize to smaller fit on window
@@ -167,11 +167,11 @@ def display_image(image):
 
 def update_status_message(message):
     status.config(text=message)
-    
+
 def set_cursor_wait():
     root.config(cursor="starting")  # arrow + circle
     #root.config(cursor="wait")     # circle
-    
+
 def set_cursor_normal():
     root.config(cursor="")
 
