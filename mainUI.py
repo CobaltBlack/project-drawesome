@@ -8,7 +8,7 @@ from image_processing.image_processing import ImageProcessor
 from arm_control.arm_control import ArmController
 
 from Tkinter import *
-#from ttk import * TODO
+import ttk as ttk
 from tkFileDialog import askopenfilename
 from PIL import Image, ImageTk
 import os
@@ -34,7 +34,7 @@ def open_image():
         display_image(Image.open(file_name))
         update_status_message("Image loaded!")
     else:
-        update_status_message("Image failed to load")
+        update_status_message("Incorrect format!")
 
 def preview_image():
     #os.system("raspistill -t 5000 -sh " + str(sharpness.get()) + " -co " + str(contrast.get()) + " -br " + str(brightness.get()) + " -sa " + str(saturation.get()) + " --ISO " + str(iso.get()))
@@ -66,15 +66,22 @@ def process_image():
     # check conditions
     if not ip.is_image_loaded:
         print "No loaded image!"
-        update_status_message("No image!")
+        update_status_message("No loaded image!")
         return
 
     processing = threading.Thread(target=process_image_threaded, args=[])
     processing.start()
     
 def process_image_threaded():
+    # disable buttons
+    button_normal_disable()
+    
     #set_cursor_wait()
-    update_status_message("Image processing...")
+    update_status_message("Image processing")
+    global processing
+    processing = True
+    dotting = threading.Thread(target=dot_dot_dot, args=[])
+    dotting.start()
 
     # process image
     drawing_instructions, img_shape = ip.process_image()
@@ -89,27 +96,52 @@ def process_image_threaded():
     display_image(preview_processed_image)
 
     #set_cursor_normal()
+    processing = False
     update_status_message("Image processed!")
+
+    # re-enable buttons
+    button_normal_enable()
+
+# nothing to see here folks
+def dot_dot_dot():
+    status.config(text = "Image processing")
+    while (processing):
+        if (processing):
+            status.config(text = "Image processing")
+        time.sleep(0.5)
+        if (processing):
+            status.config(text = "Image processing.")
+        time.sleep(0.5)
+        if (processing):
+            status.config(text = "Image processing..")
+        time.sleep(0.5)
+        if (processing):
+            status.config(text = "Image processing...")
+        time.sleep(0.5)
+        if (processing):
+            status.config(text = "Image processing....")
+        time.sleep(0.5)
+        if (processing):
+            status.config(text = "Image processing.....")
+        time.sleep(0.5)
 
 def draw_image():
     # check conditions
     if not ip.is_image_loaded:
         print "No loaded image!"
-        update_status_message("No image!")
+        update_status_message("No processed image!")
         return
-
-    # update buttons
-    global toolbar
-    toolbar.destroy()
-    button_setup_drawing()
     
+    # update buttons
+    button_setup_drawing()
+
     # draw on seperate thread
     drawing = threading.Thread(target=draw_image_threaded, args=[])
     drawing.start()
-    
+
     # update progress until complete
-    progress = threading.Thread(target=update_drawing_progress_threaded, args=[])
-    progress.start()
+    #progress = threading.Thread(target=update_drawing_progress_threaded, args=[])
+    #progress.start()
 
 def draw_image_threaded():
     #set_cursor_wait()
@@ -119,24 +151,25 @@ def draw_image_threaded():
     #ac.draw_loaded_instructions()
 
     # update buttons
-    global toolbar
-    toolbar.destroy()
     button_setup_normal()
     
     #set_cursor_normal()
     update_status_message("Image drawn!")
-
-# TODO
+    
 def update_drawing_progress_threaded():
     while (ac.get_drawing_progress() != 1):
         time.sleep(1)
         update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "%")
-        print "drawing"
+        print "progress bar - drawing"
     
     time.sleep(1)
     update_status_message("Image drawing... " + str(ac.get_drawing_progress()) + "% Drawing complete.")
     
 def draw_image_pause():
+    if (ac.draw_pause):
+        button_pause.config(text="PAUSE") 
+    else:
+        button_pause.config(text="UNPAUSE") 
     ac.draw_image_pause()
     
 def draw_image_abort():
@@ -166,7 +199,14 @@ def display_image(image):
     canvas.create_image(IMAGE_DISPLAY_SIZE/2, IMAGE_DISPLAY_SIZE/2, image=photo_img)
 
 def update_status_message(message):
+    status.config(text="")
+    message = threading.Thread(target=update_status_message_threaded, args=[message])
+    message.start()
+
+def update_status_message_threaded(message):
+    time.sleep(0.01)
     status.config(text=message)
+    
     
 def set_cursor_wait():
     root.config(cursor="starting")  # arrow + circle
@@ -265,42 +305,75 @@ def show_value_iso():
     print (iso.get())
 
 def button_setup_normal():
+    print("button_setup_normal")
     # Button bar
     global toolbar
+    toolbar.destroy()
+
     toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
     toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
     # Buttons
-    b = Button(toolbar, text="LOAD", width=9, command=open_image)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-    b = Button(toolbar, text="CAPTURE", width=9, command=take_picture)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-    b = Button(toolbar, text="PROCESS", width=9, command=process_image)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-    b = Button(toolbar, text="DRAW", width=9, command=draw_image)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    global button_load
+    button_load = ttk.Button(toolbar, text="LOAD", width=9, command=open_image)
+    button_load.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    global button_capture
+    button_capture = ttk.Button(toolbar, text="CAPTURE", width=9, command=take_picture)
+    button_capture.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    global button_process
+    button_process = ttk.Button(toolbar, text="PROCESS", width=9, command=process_image)
+    button_process.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    global button_draw
+    button_draw = ttk.Button(toolbar, text="DRAW", width=9, command=draw_image)
+    button_draw.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
 
 def button_setup_drawing():
+    print("button_setup_drawing")
     # Button bar
     global toolbar
+    toolbar.destroy()
+    
     toolbar = Frame(toolbar_parent) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
     toolbar.pack(anchor=CENTER, fill=X, padx=5, pady=5)
     # Buttons
-    b = Button(toolbar, text="PAUSE", width=9, command=draw_image_pause)
-    b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
-    b = Button(toolbar, text="ABORT", width=9, command=draw_image_abort)
+    global button_pause
+    button_pause = ttk.Button(toolbar, text="PAUSE", width=9, command=draw_image_pause)
+    button_pause.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
+    b = ttk.Button(toolbar, text="ABORT", width=9, command=draw_image_abort)
     b.pack(anchor=CENTER, side=LEFT, padx=2, pady=2)
     # Pack
     toolbar.pack(side=BOTTOM, fill=X)
+    
+def button_normal_disable():
+    global button_load
+    button_load.config(state=DISABLED)
+    global button_capture
+    button_capture.config(state=DISABLED)
+    global button_process
+    button_process.config(state=DISABLED)
+    global button_draw
+    button_draw.config(state=DISABLED)
 
+def button_normal_enable():
+    global button_load
+    button_load.config(state=NORMAL)
+    global button_capture
+    button_capture.config(state=NORMAL)
+    global button_process
+    button_process.config(state=NORMAL)
+    global button_draw
+    button_draw.config(state=NORMAL)
+    
 # Set up
+global root
 root = Tk()
 root.title("Image Processor")
 root.geometry("640x700")
+root.configure(background='#DCDAD5')
 
-#s = tetekay.Style()
-#s.theme_use('clam')
+s = ttk.Style()
+s.theme_use('clam')
 
 # initialization
 file_name = ""
@@ -312,25 +385,28 @@ menubar = Menu(root)
 filemenu = Menu(menubar, tearoff=0)
 filemenu.add_command(label="Preview", command=preview_image)
 filemenu.add_command(label="Image Settings", command=settings_window)
+filemenu.add_command(label="Debug", command=button_setup_normal)
 filemenu.add_separator()
 filemenu.add_command(label="Exit", command=root.quit)
 menubar.add_cascade(label="Options", menu=filemenu)
 
 # Status bar
-status = Label(root, text="Welcome!", bd = 1, relief = SUNKEN, anchor = W)
+status = ttk.Label(root, text="Welcome to Team Drawsome Image Processor!")#, bd = 1, relief = SUNKEN, anchor = W)
 status.pack(side = BOTTOM, fill = X)
 
 # Button bar
-toolbar_parent = Frame(root) # toolbar = Frame(height=2, bd=1, relief=SUNKEN)
+global toolbar_parent
+toolbar_parent = Frame(root) #toolbar_parent = Frame(root, height=2, bd=1, relief=SUNKEN)
 toolbar_parent.pack(anchor=CENTER, fill=X)
 # Buttons
+global toolbar
 toolbar = Frame(toolbar_parent)
 button_setup_normal()
 # Pack
 toolbar_parent.pack(side=BOTTOM, fill=X)
 
 # Button bar seperator
-separator = Frame(height=2, bd=1, relief=SUNKEN)
+separator = ttk.Frame(height=2)#, bd=1, relief=SUNKEN)
 separator.pack(side = BOTTOM, fill = X) # separator.pack(fill=X, padx=5, pady=5)
 
 # Canvas set up

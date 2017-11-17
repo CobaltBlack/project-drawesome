@@ -58,6 +58,8 @@ class ArmController:
         self.curr_z = PEN_UP_Z
         self.instructions = []
         self.motor_commands = []
+        self.draw_pause = False
+        self.draw_abort = False
         self.mc = MotorController() # COMMENT WHEN RUNNING ON WINDOWS
 
     # Loads instructions and image metadata from image processing
@@ -227,7 +229,7 @@ class ArmController:
                 return
 
             #pause
-            if (draw_pause):
+            if (self.draw_pause):
                 print ("drawing paused")
                 time.sleep(1)
             #unpause
@@ -238,26 +240,22 @@ class ArmController:
 
                 
     def draw_image_pause(self):
-        global draw_pause
-        if (draw_pause == False):
-            draw_pause = True
+        if (self.draw_pause == False):
+            print ("draw_pause: " + str(self.draw_pause))
+            self.draw_pause = True
         else:
-            draw_pause = False
+            print ("draw_pause: " + str(self.draw_pause))
+            self.draw_pause = False
 
             
     def draw_image_abort(self):
         print ("abort button not yet implemented!")
-        global draw_abort
-        draw_abort = True
+        self.draw_abort = True
     
     
     def get_drawing_progress(self):
         return self.mc.get_drawing_progress()
-        
-    
-# TEST
-draw_pause = False
-draw_abort = False
+
 
 # end ArmController
 
