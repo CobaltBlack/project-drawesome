@@ -200,7 +200,7 @@ def draw_image_threaded():
     
 def update_drawing_progress_threaded():
     global is_drawing
-    while (ac.get_drawing_progress() != 1 & is_drawing):
+    while (ac.get_drawing_progress() != 1 and is_drawing):
         time.sleep(1)
         if (ac.draw_pause):
             status.config(text = "Image drawing... " + str(ac.get_drawing_progress()) + "% - PAUSED")
